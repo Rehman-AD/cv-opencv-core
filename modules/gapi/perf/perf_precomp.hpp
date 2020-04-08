@@ -5,33 +5,24 @@
 // Copyright (C) 2018-2020 Intel Corporation
 
 
-// FIXME: OpenCV header
-
-#ifndef __OPENCV_GAPI_TEST_PRECOMP_HPP__
-#define __OPENCV_GAPI_TEST_PRECOMP_HPP__
+#ifndef __OPENCV_GAPI_PERF_PRECOMP_HPP__
+#define __OPENCV_GAPI_PERF_PRECOMP_HPP__
 
 #include <cstdint>
 #include <vector>
 
 #include <opencv2/ts.hpp>
-
 #include <opencv2/gapi.hpp>
-#include <opencv2/gapi/core.hpp>
 #include <opencv2/gapi/imgproc.hpp>
 #include <opencv2/gapi/video.hpp>
+#include <opencv2/gapi/core.hpp>
 #include <opencv2/gapi/cpu/gcpukernel.hpp>
 #include <opencv2/gapi/gpu/ggpukernel.hpp>
 #include <opencv2/gapi/gpu/imgproc.hpp>
 #include <opencv2/gapi/gpu/core.hpp>
-#include <opencv2/gapi/gcompoundkernel.hpp>
 #include <opencv2/gapi/operators.hpp>
-#include <opencv2/gapi/fluid/imgproc.hpp>
+
 #include <opencv2/gapi/fluid/core.hpp>
-#include <opencv2/gapi/infer.hpp>
+#include <opencv2/gapi/fluid/imgproc.hpp>
 
-namespace cv {
-static inline void countNonZero_is_forbidden_in_tests_use_norm_instead() {}
-}
-#define countNonZero() countNonZero_is_forbidden_in_tests_use_norm_instead()
-
-#endif // __OPENCV_GAPI_TEST_PRECOMP_HPP__
+#endif // __OPENCV_GAPI_PERF_PRECOMP_HPP__
