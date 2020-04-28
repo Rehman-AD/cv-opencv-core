@@ -1,43 +1,52 @@
-/*
- *  cap_avfoundation.mm
- *  For iOS video I/O
- *  by Xiaochao Yang on 06/15/11 modified from
- *  cap_qtkit.mm for Nicholas Butko for Mac OS version.
- *  Copyright 2011. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
- * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- */
+/*M///////////////////////////////////////////////////////////////////////////////////////
+//
+// IMPORTANT: READ BEFORE DOWNLOADING, COPYING, INSTALLING OR USING.
+//
+// By downloading, copying, installing or using the software you agree to this license.
+// If you do not agree to this license, do not download, install,
+// copy or use the software.
+//
+//
+//                          License Agreement
+//                For Open Source Computer Vision Library
+//
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
+// Third party copyrights are property of their respective owners.
+//
+// Redistribution and use in source and binary forms, with or without modification,
+// are permitted provided that the following conditions are met:
+//
+// * Redistribution's of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// * Redistribution's in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// * The name of the copyright holders may not be used to endorse or promote products
+// derived from this software without specific prior written permission.
+//
+// This software is provided by the copyright holders and contributors "as is" and
+// any express or implied warranties, including, but not limited to, the implied
+// warranties of merchantability and fitness for a particular purpose are disclaimed.
+// In no event shall the contributor be liable for any direct,
+// indirect, incidental, special, exemplary, or consequential damages
+// (including, but not limited to, procurement of substitute goods or services;
+// loss of use, data, or profits; or business interruption) however caused
+// and on any theory of liability, whether in contract, strict liability,
+// or tort (including negligence or otherwise) arising in any way out of
+// the use of this software, even if advised of the possibility of such damage.
+//
+//M*////////////////////////////////////////////////////////////////////////////////////////
 
- #pragma clang diagnostic push
- #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 #include "precomp.hpp"
 #include "opencv2/imgproc.hpp"
-#include "cap_interface.hpp"
-#include <iostream>
+#include <stdio.h>
+#include <Availability.h>
 #import <AVFoundation/AVFoundation.h>
-#import <Foundation/NSException.h>
 
 #define CV_CAP_MODE_BGR CV_FOURCC_MACRO('B','G','R','3')
 #define CV_CAP_MODE_RGB CV_FOURCC_MACRO('R','G','B','3')
@@ -58,25 +67,23 @@
  *
  *****************************************************************************/
 
-#define DISABLE_AUTO_RESTART 999
 
 @interface CaptureDelegate : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
 {
-    int newFrame;
-    CVImageBufferRef  mCurrentImageBuffer;
-    char* imagedata;
-    IplImage* image;
-    char* bgr_imagedata;
-    IplImage* bgr_image;
-    IplImage* bgr_image_r90;
-    size_t currSize;
+    NSCondition *mHasNewFrame;
+    CVPixelBufferRef mGrabbedPixels;
+    CVImageBufferRef mCurrentImageBuffer;
+    IplImage *mDeviceImage;
+    uint8_t  *mOutImagedata;
+    IplImage *mOutImage;
+    size_t    currSize;
 }
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
 didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
-fromConnection:(AVCaptureConnection *)connection;
+       fromConnection:(AVCaptureConnection *)connection;
 
-
+- (BOOL)grabImageUntilDate: (NSDate *)limit;
 - (int)updateImage;
 - (IplImage*)getOutput;
 
@@ -91,36 +98,36 @@ fromConnection:(AVCaptureConnection *)connection;
  *****************************************************************************/
 
 class CvCaptureCAM : public CvCapture {
-    public:
-        CvCaptureCAM(int cameraNum = -1) ;
-        ~CvCaptureCAM();
-        virtual bool grabFrame();
-        virtual IplImage* retrieveFrame(int);
-        virtual IplImage* queryFrame();
-        virtual double getProperty(int property_id) const;
-        virtual bool setProperty(int property_id, double value);
-        virtual int didStart();
+public:
+    CvCaptureCAM(int cameraNum = -1) ;
+    ~CvCaptureCAM();
+    virtual bool grabFrame();
+    virtual IplImage* retrieveFrame(int);
+    virtual double getProperty(int property_id) const;
+    virtual bool setProperty(int property_id, double value);
+    virtual int didStart();
 
-    private:
-        AVCaptureSession            *mCaptureSession;
-        AVCaptureDeviceInput        *mCaptureDeviceInput;
-        AVCaptureVideoDataOutput    *mCaptureDecompressedVideoOutput;
-        AVCaptureDevice 						*mCaptureDevice;
-        CaptureDelegate							*capture;
 
-        int startCaptureDevice(int cameraNum);
-        void stopCaptureDevice();
+private:
+    AVCaptureSession            *mCaptureSession;
+    AVCaptureDeviceInput        *mCaptureDeviceInput;
+    AVCaptureVideoDataOutput    *mCaptureVideoDataOutput;
+    AVCaptureDevice             *mCaptureDevice;
+    CaptureDelegate             *mCapture;
 
-        void setWidthHeight();
-        bool grabFrame(double timeOut);
+    int startCaptureDevice(int cameraNum);
+    void stopCaptureDevice();
 
-        int camNum;
-        int width;
-        int height;
-        int settingWidth;
-        int settingHeight;
-        int started;
-        int disableAutoRestart;
+    void setWidthHeight();
+    bool grabFrame(double timeOut);
+
+    int camNum;
+    int width;
+    int height;
+    int settingWidth;
+    int settingHeight;
+
+    int started;
 };
 
 
@@ -141,6 +148,8 @@ public:
     virtual double getProperty(int property_id) const;
     virtual bool setProperty(int property_id, double value);
     virtual int didStart();
+
+
 private:
     AVAsset                  *mAsset;
     AVAssetTrack             *mAssetTrack;
@@ -168,20 +177,22 @@ private:
 
 /*****************************************************************************
  *
- * CvCaptureFile Declaration.
+ * CvVideoWriter_AVFoundation Declaration.
  *
- * CvCaptureFile is the instantiation of a capture source for video files.
+ * CvVideoWriter_AVFoundation is the instantiation of a video output class.
  *
  *****************************************************************************/
 
-class CvVideoWriter_AVFoundation : public CvVideoWriter{
+class CvVideoWriter_AVFoundation : public CvVideoWriter {
     public:
-        CvVideoWriter_AVFoundation(const char* filename, int fourcc,
-                double fps, CvSize frame_size,
-                int is_color=1);
+        CvVideoWriter_AVFoundation(const std::string &filename, int fourcc, double fps, CvSize frame_size, int is_color);
         ~CvVideoWriter_AVFoundation();
         bool writeFrame(const IplImage* image) CV_OVERRIDE;
         int getCaptureDomain() const CV_OVERRIDE { return cv::CAP_AVFOUNDATION; }
+        bool isOpened() const
+        {
+            return is_good;
+        }
     private:
         IplImage* argbimage;
 
@@ -192,15 +203,14 @@ class CvVideoWriter_AVFoundation : public CvVideoWriter{
         NSString* path;
         NSString* codec;
         NSString* fileType;
-        double movieFPS;
+        double mMovieFPS;
         CvSize movieSize;
         int movieColor;
-        unsigned long frameCount;
+        unsigned long mFrameNum;
+        bool is_good;
 };
 
-
 /****************** Implementation of interface functions ********************/
-
 
 cv::Ptr<cv::IVideoCapture> cv::create_AVFoundation_capture_file(const std::string &filename)
 {
@@ -222,16 +232,22 @@ cv::Ptr<cv::IVideoCapture> cv::create_AVFoundation_capture_cam(int index)
 }
 
 cv::Ptr<cv::IVideoWriter> cv::create_AVFoundation_writer(const std::string& filename, int fourcc,
-                                                         double fps, const cv::Size &frameSize,
+                                                         double fps, const cv::Size& frameSize,
                                                          const cv::VideoWriterParameters& params)
 {
     CvSize sz = { frameSize.width, frameSize.height };
     const bool isColor = params.get(VIDEOWRITER_PROP_IS_COLOR, true);
-    CvVideoWriter_AVFoundation* wrt = new CvVideoWriter_AVFoundation(filename.c_str(), fourcc, fps, sz, isColor);
-    return cv::makePtr<cv::LegacyWriter>(wrt);
+    CvVideoWriter_AVFoundation* wrt = new CvVideoWriter_AVFoundation(filename, fourcc, fps, sz, isColor);
+    if (wrt->isOpened())
+    {
+        return cv::makePtr<cv::LegacyWriter>(wrt);
+    }
+    delete wrt;
+    return NULL;
 }
 
 /********************** Implementation of Classes ****************************/
+
 /*****************************************************************************
  *
  * CvCaptureCAM Implementation.
@@ -243,29 +259,27 @@ cv::Ptr<cv::IVideoWriter> cv::create_AVFoundation_writer(const std::string& file
 CvCaptureCAM::CvCaptureCAM(int cameraNum) {
     mCaptureSession = nil;
     mCaptureDeviceInput = nil;
-    mCaptureDecompressedVideoOutput = nil;
-    capture = nil;
+    mCaptureVideoDataOutput = nil;
+    mCaptureDevice = nil;
+    mCapture = nil;
 
     width = 0;
     height = 0;
     settingWidth = 0;
     settingHeight = 0;
-    disableAutoRestart = 0;
 
     camNum = cameraNum;
 
-    if (!startCaptureDevice(camNum)) {
-        std::cout << "Warning, camera failed to properly initialize!" << std::endl;
+    if ( ! startCaptureDevice(camNum) ) {
+        fprintf(stderr, "OpenCV: camera failed to properly initialize!\n");
         started = 0;
     } else {
         started = 1;
     }
-
 }
 
 CvCaptureCAM::~CvCaptureCAM() {
     stopCaptureDevice();
-    //cout << "Cleaned up camera." << endl;
 }
 
 int CvCaptureCAM::didStart() {
@@ -274,356 +288,273 @@ int CvCaptureCAM::didStart() {
 
 
 bool CvCaptureCAM::grabFrame() {
-    return grabFrame(5);
+    return grabFrame(1);
 }
 
 bool CvCaptureCAM::grabFrame(double timeOut) {
+    NSAutoreleasePool *localpool = [[NSAutoreleasePool alloc] init];
 
-    NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
-    double sleepTime = 0.005;
-    double total = 0;
-
-    NSDate *loopUntil = [NSDate dateWithTimeIntervalSinceNow:sleepTime];
-    while (![capture updateImage] && (total += sleepTime)<=timeOut &&
-            [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode
-            beforeDate:loopUntil])
-        loopUntil = [NSDate dateWithTimeIntervalSinceNow:sleepTime];
+    bool isGrabbed = false;
+    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow: timeOut];
+    if ( [mCapture grabImageUntilDate: limit] ) {
+        [mCapture updateImage];
+        isGrabbed = true;
+    }
 
     [localpool drain];
-
-    return total <= timeOut;
+    return isGrabbed;
 }
 
 IplImage* CvCaptureCAM::retrieveFrame(int) {
-    return [capture getOutput];
-}
-
-IplImage* CvCaptureCAM::queryFrame() {
-    while (!grabFrame()) {
-        std::cout << "WARNING: Couldn't grab new frame from camera!!!" << std::endl;
-        /*
-             cout << "Attempting to restart camera; set capture property DISABLE_AUTO_RESTART to disable." << endl;
-             stopCaptureDevice();
-             startCaptureDevice(camNum);
-         */
-    }
-    return retrieveFrame(0);
+    return [mCapture getOutput];
 }
 
 void CvCaptureCAM::stopCaptureDevice() {
-    NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
+    NSAutoreleasePool *localpool = [[NSAutoreleasePool alloc] init];
 
     [mCaptureSession stopRunning];
 
     [mCaptureSession release];
     [mCaptureDeviceInput release];
+    // [mCaptureDevice release]; fix #7833
 
-    [mCaptureDecompressedVideoOutput release];
-    [capture release];
+    [mCaptureVideoDataOutput release];
+    [mCapture release];
+
     [localpool drain];
-
 }
 
 int CvCaptureCAM::startCaptureDevice(int cameraNum) {
-    NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
+    NSAutoreleasePool *localpool = [[NSAutoreleasePool alloc] init];
 
-    capture = [[CaptureDelegate alloc] init];
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 101400
+    if (@available(macOS 10.14, *))
+    {
+        AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+        if (status == AVAuthorizationStatusDenied)
+        {
+            fprintf(stderr, "OpenCV: camera access has been denied. Either run 'tccutil reset Camera' "
+                            "command in same terminal to reset application authorization status, "
+                            "either modify 'System Preferences -> Security & Privacy -> Camera' "
+                            "settings for your application.\n");
+            [localpool drain];
+            return 0;
+        }
+        else if (status != AVAuthorizationStatusAuthorized)
+        {
+            if (!cv::utils::getConfigurationParameterBool("OPENCV_AVFOUNDATION_SKIP_AUTH", false))
+            {
+                fprintf(stderr, "OpenCV: not authorized to capture video (status %ld), requesting...\n", status);
+                [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL) { /* we don't care */}];
+                if ([NSThread isMainThread])
+                {
+                    // we run the main loop for 0.1 sec to show the message
+                    [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+                }
+                else
+                {
+                    fprintf(stderr, "OpenCV: can not spin main run loop from other thread, set "
+                                    "OPENCV_AVFOUNDATION_SKIP_AUTH=1 to disable authorization request "
+                                    "and perform it in your application.\n");
+                }
+            }
+            else
+            {
+                fprintf(stderr, "OpenCV: not authorized to capture video (status %ld), set "
+                                "OPENCV_AVFOUNDATION_SKIP_AUTH=0 to enable authorization request or "
+                                "perform it in your application.\n", status);
+            }
+            [localpool drain];
+            return 0;
+        }
+    }
+#endif
 
-    AVCaptureDevice *device;
-    NSArray* devices = [[AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo]
+    // get capture device
+    NSArray *devices = [[AVCaptureDevice devicesWithMediaType: AVMediaTypeVideo]
             arrayByAddingObjectsFromArray:[AVCaptureDevice devicesWithMediaType:AVMediaTypeMuxed]];
-    if ([devices count] == 0) {
-        std::cout << "AV Foundation didn't find any attached Video Input Devices!" << std::endl;
+
+    if ( devices.count == 0 ) {
+        fprintf(stderr, "OpenCV: AVFoundation didn't find any attached Video Input Devices!\n");
         [localpool drain];
         return 0;
     }
 
-    if (cameraNum >= 0) {
-        camNum = cameraNum % [devices count];
-        if (camNum != cameraNum) {
-            std::cout << "Warning: Max Camera Num is " << [devices count]-1 << "; Using camera " << camNum << std::endl;
-        }
-        device = [devices objectAtIndex:camNum];
-    } else {
-        device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo]  ;
-    }
-    mCaptureDevice = device;
-    //int success;
-    NSError* error;
-
-    if (device) {
-
-        mCaptureDeviceInput = [[AVCaptureDeviceInput alloc] initWithDevice:device error:&error] ;
-        mCaptureSession = [[AVCaptureSession alloc] init] ;
-
-        /*
-             success = [mCaptureSession addInput:mCaptureDeviceInput];
-
-             if (!success) {
-             cout << "AV Foundation failed to start capture session with opened Capture Device" << endl;
-             [localpool drain];
-             return 0;
-             }
-         */
-
-        mCaptureDecompressedVideoOutput = [[AVCaptureVideoDataOutput alloc] init];
-
-        dispatch_queue_t queue = dispatch_queue_create("cameraQueue", NULL);
-        [mCaptureDecompressedVideoOutput setSampleBufferDelegate:capture queue:queue];
-        dispatch_release(queue);
-
-
-        NSDictionary *pixelBufferOptions ;
-        if (width > 0 && height > 0) {
-            pixelBufferOptions = [NSDictionary dictionaryWithObjectsAndKeys:
-                [NSNumber numberWithDouble:1.0*width], (id)kCVPixelBufferWidthKey,
-                [NSNumber numberWithDouble:1.0*height], (id)kCVPixelBufferHeightKey,
-                [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32BGRA],
-                (id)kCVPixelBufferPixelFormatTypeKey,
-                nil];
-        } else {
-            pixelBufferOptions = [NSDictionary dictionaryWithObjectsAndKeys:
-                [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32BGRA],
-                (id)kCVPixelBufferPixelFormatTypeKey,
-                nil];
-        }
-
-        //TODO: add new interface for setting fps and capturing resolution.
-        [mCaptureDecompressedVideoOutput setVideoSettings:pixelBufferOptions];
-        mCaptureDecompressedVideoOutput.alwaysDiscardsLateVideoFrames = YES;
-
-#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
-        mCaptureDecompressedVideoOutput.minFrameDuration = CMTimeMake(1, 30);
-#endif
-
-        //Slow. 1280*720 for iPhone4, iPod back camera. 640*480 for front camera
-        //mCaptureSession.sessionPreset = AVCaptureSessionPresetHigh; // fps ~= 5 slow for OpenCV
-
-        mCaptureSession.sessionPreset = AVCaptureSessionPresetMedium; //480*360
-        if (width == 0 ) width = 480;
-        if (height == 0 ) height = 360;
-
-        [mCaptureSession addInput:mCaptureDeviceInput];
-        [mCaptureSession addOutput:mCaptureDecompressedVideoOutput];
-
-        /*
-        // Does not work! This is the preferred way (hardware acceleration) to change pixel buffer orientation.
-        // I'm now using cvtranspose and cvflip instead, which takes cpu cycles.
-        AVCaptureConnection *connection = [[mCaptureDecompressedVideoOutput connections] objectAtIndex:0];
-        if([connection isVideoOrientationSupported]) {
-            //NSLog(@"Setting pixel buffer orientation");
-            connection.videoOrientation = AVCaptureVideoOrientationPortrait;
-        }
-        */
-
-        [mCaptureSession startRunning];
-
-        grabFrame(60);
+    if ( cameraNum < 0 || devices.count <= NSUInteger(cameraNum) ) {
+        fprintf(stderr, "OpenCV: out device of bound (0-%ld): %d\n", devices.count-1, cameraNum);
         [localpool drain];
-        return 1;
+        return 0;
     }
+
+    mCaptureDevice = devices[cameraNum];
+
+    if ( ! mCaptureDevice ) {
+        fprintf(stderr, "OpenCV: device %d not able to use.\n", cameraNum);
+        [localpool drain];
+        return 0;
+    }
+
+    // get input device
+    NSError *error = nil;
+    mCaptureDeviceInput = [[AVCaptureDeviceInput alloc] initWithDevice: mCaptureDevice
+                                                                 error: &error];
+    if ( error ) {
+        fprintf(stderr, "OpenCV: error in [AVCaptureDeviceInput initWithDevice:error:]\n");
+        NSLog(@"OpenCV: %@", error.localizedDescription);
+        [localpool drain];
+        return 0;
+    }
+
+    // create output
+    mCapture = [[CaptureDelegate alloc] init];
+    mCaptureVideoDataOutput = [[AVCaptureVideoDataOutput alloc] init];
+    dispatch_queue_t queue = dispatch_queue_create("cameraQueue", DISPATCH_QUEUE_SERIAL);
+    [mCaptureVideoDataOutput setSampleBufferDelegate: mCapture queue: queue];
+    dispatch_release(queue);
+
+    OSType pixelFormat = kCVPixelFormatType_32BGRA;
+    //OSType pixelFormat = kCVPixelFormatType_422YpCbCr8;
+    NSDictionary *pixelBufferOptions;
+    if (width > 0 && height > 0) {
+        pixelBufferOptions =
+            @{
+                (id)kCVPixelBufferWidthKey:  @(1.0*width),
+                (id)kCVPixelBufferHeightKey: @(1.0*height),
+                (id)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat)
+            };
+    } else {
+        pixelBufferOptions =
+            @{
+                (id)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat)
+            };
+    }
+    mCaptureVideoDataOutput.videoSettings = pixelBufferOptions;
+    mCaptureVideoDataOutput.alwaysDiscardsLateVideoFrames = YES;
+
+    // create session
+    mCaptureSession = [[AVCaptureSession alloc] init];
+    mCaptureSession.sessionPreset = AVCaptureSessionPresetMedium;
+    [mCaptureSession addInput: mCaptureDeviceInput];
+    [mCaptureSession addOutput: mCaptureVideoDataOutput];
+
+    [mCaptureSession startRunning];
+
+    // flush old position image
+    grabFrame(1);
 
     [localpool drain];
-    return 0;
+    return 1;
 }
 
 void CvCaptureCAM::setWidthHeight() {
-    NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
-    NSDictionary* pixelBufferOptions = [NSDictionary dictionaryWithObjectsAndKeys:
-        [NSNumber numberWithDouble:1.0*width], (id)kCVPixelBufferWidthKey,
-        [NSNumber numberWithDouble:1.0*height], (id)kCVPixelBufferHeightKey,
-        [NSNumber numberWithUnsignedInt:kCVPixelFormatType_32BGRA],
-        (id)kCVPixelBufferPixelFormatTypeKey,
-        nil];
+    NSMutableDictionary *pixelBufferOptions = [mCaptureVideoDataOutput.videoSettings mutableCopy];
 
-    [mCaptureDecompressedVideoOutput setVideoSettings:pixelBufferOptions];
-    grabFrame(60);
-    [localpool drain];
+    while ( true ) {
+        // auto matching
+        pixelBufferOptions[(id)kCVPixelBufferWidthKey]  = @(1.0*width);
+        pixelBufferOptions[(id)kCVPixelBufferHeightKey] = @(1.0*height);
+        mCaptureVideoDataOutput.videoSettings = pixelBufferOptions;
+
+        // compare matched size and my options
+        CMFormatDescriptionRef format = mCaptureDevice.activeFormat.formatDescription;
+        CMVideoDimensions deviceSize = CMVideoFormatDescriptionGetDimensions(format);
+        if ( deviceSize.width == width && deviceSize.height == height ) {
+            break;
+        }
+
+        // fit my options to matched size
+        width = deviceSize.width;
+        height = deviceSize.height;
+    }
+
+    // flush old size image
+    grabFrame(1);
+
+    [pixelBufferOptions release];
 }
 
-//added macros into headers in videoio_c.h
-/*
-#define CV_CAP_PROP_IOS_DEVICE_FOCUS 9001
-#define CV_CAP_PROP_IOS_DEVICE_EXPOSURE 9002
-#define CV_CAP_PROP_IOS_DEVICE_FLASH 9003
-#define CV_CAP_PROP_IOS_DEVICE_WHITEBALANCE 9004
-#define CV_CAP_PROP_IOS_DEVICE_TORCH 9005
-*/
-
-
-/*
-// All available settings are taken from iOS API
-
-enum {
-   AVCaptureFlashModeOff    = 0,
-   AVCaptureFlashModeOn     = 1,
-   AVCaptureFlashModeAuto   = 2
-};
-typedef NSInteger AVCaptureFlashMode;
-
-enum {
-   AVCaptureTorchModeOff    = 0,
-   AVCaptureTorchModeOn     = 1,
-   AVCaptureTorchModeAuto   = 2
-};
-typedef NSInteger AVCaptureTorchMode;
-
-enum {
-   AVCaptureFocusModeLocked                = 0,
-   AVCaptureFocusModeAutoFocus             = 1,
-   AVCaptureFocusModeContinuousAutoFocus   = 2,
-};
-typedef NSInteger AVCaptureFocusMode;
-
-enum {
-   AVCaptureExposureModeLocked                    = 0,
-   AVCaptureExposureModeAutoExpose                = 1,
-   AVCaptureExposureModeContinuousAutoExposure    = 2,
-};
-typedef NSInteger AVCaptureExposureMode;
-
-enum {
-   AVCaptureWhiteBalanceModeLocked             = 0,
-   AVCaptureWhiteBalanceModeAutoWhiteBalance   = 1,
-   AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance = 2,
-};
-typedef NSInteger AVCaptureWhiteBalanceMode;
-*/
 
 double CvCaptureCAM::getProperty(int property_id) const{
-    NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
+    NSAutoreleasePool *localpool = [[NSAutoreleasePool alloc] init];
 
-    /*
-         NSArray* connections = [mCaptureDeviceInput	connections];
-         QTFormatDescription* format = [[connections objectAtIndex:0] formatDescription];
-         NSSize s1 = [[format attributeForKey:QTFormatDescriptionVideoCleanApertureDisplaySizeAttribute] sizeValue];
-     */
-
-    NSArray* ports = mCaptureDeviceInput.ports;
-    CMFormatDescriptionRef format = [[ports objectAtIndex:0] formatDescription];
-    CGSize s1 = CMVideoFormatDescriptionGetPresentationDimensions(format, YES, YES);
-
-    int w=(int)s1.width, h=(int)s1.height;
-
-    [localpool drain];
+    CMFormatDescriptionRef format = mCaptureDevice.activeFormat.formatDescription;
+    CMVideoDimensions s1 = CMVideoFormatDescriptionGetDimensions(format);
+    double retval = 0;
 
     switch (property_id) {
         case CV_CAP_PROP_FRAME_WIDTH:
-            return w;
+            retval = s1.width;
+            break;
         case CV_CAP_PROP_FRAME_HEIGHT:
-            return h;
-
-        case CV_CAP_PROP_IOS_DEVICE_FOCUS:
-            return mCaptureDevice.focusMode;
-        case CV_CAP_PROP_IOS_DEVICE_EXPOSURE:
-            return mCaptureDevice.exposureMode;
-        case CV_CAP_PROP_IOS_DEVICE_FLASH:
-            return mCaptureDevice.flashMode;
-        case CV_CAP_PROP_IOS_DEVICE_WHITEBALANCE:
-            return mCaptureDevice.whiteBalanceMode;
-        case CV_CAP_PROP_IOS_DEVICE_TORCH:
-            return mCaptureDevice.torchMode;
-
+            retval = s1.height;
+            break;
+        case CV_CAP_PROP_FPS:
+            {
+                CMTime frameDuration = mCaptureDevice.activeVideoMaxFrameDuration;
+                retval = frameDuration.timescale / double(frameDuration.value);
+            }
+            break;
+        case CV_CAP_PROP_FORMAT:
+            retval = CV_8UC3;
+            break;
         default:
-            return 0;
+            break;
     }
 
-
+    [localpool drain];
+    return retval;
 }
 
 bool CvCaptureCAM::setProperty(int property_id, double value) {
+    NSAutoreleasePool *localpool = [[NSAutoreleasePool alloc] init];
+
+    bool isSucceeded = false;
+
     switch (property_id) {
         case CV_CAP_PROP_FRAME_WIDTH:
             width = value;
             settingWidth = 1;
             if (settingWidth && settingHeight) {
                 setWidthHeight();
-                settingWidth =0;
+                settingWidth = 0;
                 settingHeight = 0;
             }
-            return true;
-
+            isSucceeded = true;
+            break;
         case CV_CAP_PROP_FRAME_HEIGHT:
             height = value;
             settingHeight = 1;
             if (settingWidth && settingHeight) {
                 setWidthHeight();
-                settingWidth =0;
+                settingWidth = 0;
                 settingHeight = 0;
             }
-            return true;
-
-        case CV_CAP_PROP_IOS_DEVICE_FOCUS:
-            if ([mCaptureDevice isFocusModeSupported:(AVCaptureFocusMode)value]){
-                NSError* error = nil;
-                [mCaptureDevice lockForConfiguration:&error];
-                if (error) return false;
-                [mCaptureDevice setFocusMode:(AVCaptureFocusMode)value];
+            isSucceeded = true;
+            break;
+        case CV_CAP_PROP_FPS:
+            if ( [mCaptureDevice lockForConfiguration: NULL] ) {
+                NSArray * ranges = mCaptureDevice.activeFormat.videoSupportedFrameRateRanges;
+                AVFrameRateRange *matchedRange = ranges[0];
+                double minDiff = fabs(matchedRange.maxFrameRate - value);
+                for ( AVFrameRateRange *range in ranges ) {
+                    double diff = fabs(range.maxFrameRate - value);
+                    if ( diff < minDiff ) {
+                        minDiff = diff;
+                        matchedRange = range;
+                    }
+                }
+                mCaptureDevice.activeVideoMinFrameDuration = matchedRange.minFrameDuration;
+                mCaptureDevice.activeVideoMaxFrameDuration = matchedRange.minFrameDuration;
+                isSucceeded = true;
                 [mCaptureDevice unlockForConfiguration];
-                //NSLog(@"Focus set");
-                return true;
-            }else {
-                return false;
             }
-
-        case CV_CAP_PROP_IOS_DEVICE_EXPOSURE:
-            if ([mCaptureDevice isExposureModeSupported:(AVCaptureExposureMode)value]){
-                NSError* error = nil;
-                [mCaptureDevice lockForConfiguration:&error];
-                if (error) return false;
-                [mCaptureDevice setExposureMode:(AVCaptureExposureMode)value];
-                [mCaptureDevice unlockForConfiguration];
-                //NSLog(@"Exposure set");
-                return true;
-            }else {
-                return false;
-            }
-
-        case CV_CAP_PROP_IOS_DEVICE_FLASH:
-            if ( [mCaptureDevice hasFlash] && [mCaptureDevice isFlashModeSupported:(AVCaptureFlashMode)value]){
-                NSError* error = nil;
-                [mCaptureDevice lockForConfiguration:&error];
-                if (error) return false;
-                [mCaptureDevice setFlashMode:(AVCaptureFlashMode)value];
-                [mCaptureDevice unlockForConfiguration];
-                //NSLog(@"Flash mode set");
-                return true;
-            }else {
-                return false;
-            }
-
-        case CV_CAP_PROP_IOS_DEVICE_WHITEBALANCE:
-            if ([mCaptureDevice isWhiteBalanceModeSupported:(AVCaptureWhiteBalanceMode)value]){
-                NSError* error = nil;
-                [mCaptureDevice lockForConfiguration:&error];
-                if (error) return false;
-                [mCaptureDevice setWhiteBalanceMode:(AVCaptureWhiteBalanceMode)value];
-                [mCaptureDevice unlockForConfiguration];
-                //NSLog(@"White balance set");
-                return true;
-            }else {
-                return false;
-            }
-
-        case CV_CAP_PROP_IOS_DEVICE_TORCH:
-            if ([mCaptureDevice hasFlash] && [mCaptureDevice isTorchModeSupported:(AVCaptureTorchMode)value]){
-                NSError* error = nil;
-                [mCaptureDevice lockForConfiguration:&error];
-                if (error) return false;
-                [mCaptureDevice setTorchMode:(AVCaptureTorchMode)value];
-                [mCaptureDevice unlockForConfiguration];
-                //NSLog(@"Torch mode set");
-                return true;
-            }else {
-                return false;
-            }
-
-        case DISABLE_AUTO_RESTART:
-            disableAutoRestart = value;
-            return 1;
+            break;
         default:
-            return false;
+            break;
     }
+
+    [localpool drain];
+    return isSucceeded;
 }
 
 
@@ -644,124 +575,147 @@ bool CvCaptureCAM::setProperty(int property_id, double value) {
 
 - (id)init {
     [super init];
-    newFrame = 0;
-    imagedata = NULL;
-    bgr_imagedata = NULL;
+    mHasNewFrame = [[NSCondition alloc] init];
+    mCurrentImageBuffer = NULL;
+    mGrabbedPixels = NULL;
+    mDeviceImage = NULL;
+    mOutImagedata = NULL;
+    mOutImage = NULL;
     currSize = 0;
-    image = NULL;
-    bgr_image = NULL;
-    bgr_image_r90 = NULL;
     return self;
 }
 
-
 -(void)dealloc {
-    if (imagedata != NULL) free(imagedata);
-    if (bgr_imagedata != NULL) free(bgr_imagedata);
-    cvReleaseImage(&image);
-    cvReleaseImage(&bgr_image);
-    cvReleaseImage(&bgr_image_r90);
+    free(mOutImagedata);
+    cvReleaseImage(&mOutImage);
+    cvReleaseImage(&mDeviceImage);
+    CVBufferRelease(mCurrentImageBuffer);
+    CVBufferRelease(mGrabbedPixels);
+    [mHasNewFrame release];
     [super dealloc];
 }
 
-
-
 - (void)captureOutput:(AVCaptureOutput *)captureOutput
 didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
-fromConnection:(AVCaptureConnection *)connection{
-
-    // Failed
-    // connection.videoOrientation = AVCaptureVideoOrientationPortrait;
+       fromConnection:(AVCaptureConnection *)connection {
     (void)captureOutput;
+    (void)sampleBuffer;
     (void)connection;
 
     CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-
     CVBufferRetain(imageBuffer);
-    CVImageBufferRef imageBufferToRelease  = mCurrentImageBuffer;
 
-    @synchronized (self) {
+    [mHasNewFrame lock];
 
-        mCurrentImageBuffer = imageBuffer;
-        newFrame = 1;
-    }
+    CVBufferRelease(mCurrentImageBuffer);
+    mCurrentImageBuffer = imageBuffer;
+    [mHasNewFrame signal];
 
-    CVBufferRelease(imageBufferToRelease);
+    [mHasNewFrame unlock];
 
 }
 
-
 -(IplImage*) getOutput {
-    //return bgr_image;
-    return bgr_image_r90;
+    return mOutImage;
+}
+
+-(BOOL) grabImageUntilDate: (NSDate *)limit {
+    BOOL isGrabbed = NO;
+    [mHasNewFrame lock];
+
+    if ( mGrabbedPixels ) {
+        CVBufferRelease(mGrabbedPixels);
+    }
+    if ( [mHasNewFrame waitUntilDate: limit] ) {
+        isGrabbed = YES;
+        mGrabbedPixels = CVBufferRetain(mCurrentImageBuffer);
+    }
+
+    [mHasNewFrame unlock];
+    return isGrabbed;
 }
 
 -(int) updateImage {
-    if (newFrame==0) return 0;
-    CVPixelBufferRef pixels;
-
-    @synchronized (self){
-        pixels = CVBufferRetain(mCurrentImageBuffer);
-        newFrame = 0;
+    if ( ! mGrabbedPixels ) {
+        return 0;
     }
 
-    CVPixelBufferLockBaseAddress(pixels, 0);
-    uint32_t* baseaddress = (uint32_t*)CVPixelBufferGetBaseAddress(pixels);
+    CVPixelBufferLockBaseAddress(mGrabbedPixels, 0);
+    void *baseaddress = CVPixelBufferGetBaseAddress(mGrabbedPixels);
 
-    size_t width = CVPixelBufferGetWidth(pixels);
-    size_t height = CVPixelBufferGetHeight(pixels);
-    size_t rowBytes = CVPixelBufferGetBytesPerRow(pixels);
+    size_t width = CVPixelBufferGetWidth(mGrabbedPixels);
+    size_t height = CVPixelBufferGetHeight(mGrabbedPixels);
+    size_t rowBytes = CVPixelBufferGetBytesPerRow(mGrabbedPixels);
+    OSType pixelFormat = CVPixelBufferGetPixelFormatType(mGrabbedPixels);
 
-    if (rowBytes != 0) {
-
-        if (currSize != rowBytes*height*sizeof(char)) {
-            currSize = rowBytes*height*sizeof(char);
-            if (imagedata != NULL) free(imagedata);
-            if (bgr_imagedata != NULL) free(bgr_imagedata);
-            imagedata = (char*)malloc(currSize);
-            bgr_imagedata = (char*)malloc(currSize);
-        }
-
-        memcpy(imagedata, baseaddress, currSize);
-
-        if (image == NULL) {
-            image = cvCreateImageHeader(cvSize((int)width,(int)height), IPL_DEPTH_8U, 4);
-        }
-        image->width = (int)width;
-        image->height = (int)height;
-        image->nChannels = 4;
-        image->depth = IPL_DEPTH_8U;
-        image->widthStep = (int)rowBytes;
-        image->imageData = imagedata;
-        image->imageSize = (int)currSize;
-
-        if (bgr_image == NULL) {
-            bgr_image = cvCreateImageHeader(cvSize((int)width,(int)height), IPL_DEPTH_8U, 3);
-        }
-        bgr_image->width = (int)width;
-        bgr_image->height = (int)height;
-        bgr_image->nChannels = 3;
-        bgr_image->depth = IPL_DEPTH_8U;
-        bgr_image->widthStep = (int)rowBytes;
-        bgr_image->imageData = bgr_imagedata;
-        bgr_image->imageSize = (int)currSize;
-
-        cvCvtColor(image, bgr_image, CV_BGRA2BGR);
-
-        // image taken from the buffer is incorrected rotated. I'm using cvTranspose + cvFlip.
-        // There should be an option in iOS API to rotate the buffer output orientation.
-        // iOS provides hardware accelerated rotation through AVCaptureConnection class
-        // I can't get it work.
-        if (bgr_image_r90 == NULL){
-            bgr_image_r90 = cvCreateImage(cvSize((int)height, (int)width), IPL_DEPTH_8U, 3);
-        }
-        cvTranspose(bgr_image, bgr_image_r90);
-        cvFlip(bgr_image_r90, NULL, 1);
-
+    if ( rowBytes == 0 ) {
+        fprintf(stderr, "OpenCV: error: rowBytes == 0\n");
+        CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
+        CVBufferRelease(mGrabbedPixels);
+        mGrabbedPixels = NULL;
+        return 0;
     }
 
-    CVPixelBufferUnlockBaseAddress(pixels, 0);
-    CVBufferRelease(pixels);
+    if ( currSize != width*3*height ) {
+        currSize = width*3*height;
+        free(mOutImagedata);
+        mOutImagedata = reinterpret_cast<uint8_t*>(malloc(currSize));
+    }
+
+    if (mOutImage == NULL) {
+        mOutImage = cvCreateImageHeader(cvSize((int)width,(int)height), IPL_DEPTH_8U, 3);
+    }
+    mOutImage->width = int(width);
+    mOutImage->height = int(height);
+    mOutImage->nChannels = 3;
+    mOutImage->depth = IPL_DEPTH_8U;
+    mOutImage->widthStep = int(width*3);
+    mOutImage->imageData = reinterpret_cast<char *>(mOutImagedata);
+    mOutImage->imageSize = int(currSize);
+
+    if ( pixelFormat == kCVPixelFormatType_32BGRA ) {
+        if (mDeviceImage == NULL) {
+            mDeviceImage = cvCreateImageHeader(cvSize(int(width),int(height)), IPL_DEPTH_8U, 4);
+        }
+        mDeviceImage->width = int(width);
+        mDeviceImage->height = int(height);
+        mDeviceImage->nChannels = 4;
+        mDeviceImage->depth = IPL_DEPTH_8U;
+        mDeviceImage->widthStep = int(rowBytes);
+        mDeviceImage->imageData = reinterpret_cast<char *>(baseaddress);
+        mDeviceImage->imageSize = int(rowBytes*height);
+
+        cvCvtColor(mDeviceImage, mOutImage, CV_BGRA2BGR);
+    } else if ( pixelFormat == kCVPixelFormatType_422YpCbCr8 ) {
+        if ( currSize != width*3*height ) {
+            currSize = width*3*height;
+            free(mOutImagedata);
+            mOutImagedata = reinterpret_cast<uint8_t*>(malloc(currSize));
+        }
+
+        if (mDeviceImage == NULL) {
+            mDeviceImage = cvCreateImageHeader(cvSize(int(width),int(height)), IPL_DEPTH_8U, 2);
+        }
+        mDeviceImage->width = int(width);
+        mDeviceImage->height = int(height);
+        mDeviceImage->nChannels = 2;
+        mDeviceImage->depth = IPL_DEPTH_8U;
+        mDeviceImage->widthStep = int(rowBytes);
+        mDeviceImage->imageData = reinterpret_cast<char *>(baseaddress);
+        mDeviceImage->imageSize = int(rowBytes*height);
+
+        cvCvtColor(mDeviceImage, mOutImage, CV_YUV2BGR_UYVY);
+    } else {
+        fprintf(stderr, "OpenCV: unknown pixel format 0x%08X\n", pixelFormat);
+        CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
+        CVBufferRelease(mGrabbedPixels);
+        mGrabbedPixels = NULL;
+        return 0;
+    }
+
+    CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
+    CVBufferRelease(mGrabbedPixels);
+    mGrabbedPixels = NULL;
 
     return 1;
 }
@@ -861,12 +815,17 @@ bool CvCaptureFile::setupReadingAt(CMTime position) {
     // Capture in a pixel format that can be converted efficiently to the output mode.
     OSType pixelFormat;
     if (mMode == CV_CAP_MODE_BGR || mMode == CV_CAP_MODE_RGB) {
+        // For CV_CAP_MODE_BGR, read frames as BGRA (AV Foundation's YUV->RGB conversion is slightly faster than OpenCV's CV_YUV2BGR_YV12)
+        // kCVPixelFormatType_32ABGR is reportedly faster on OS X, but OpenCV doesn't have a CV_ABGR2BGR conversion.
+        // kCVPixelFormatType_24RGB is significantly slower than kCVPixelFormatType_32BGRA.
         pixelFormat = kCVPixelFormatType_32BGRA;
         mFormat = CV_8UC3;
     } else if (mMode == CV_CAP_MODE_GRAY) {
+        // For CV_CAP_MODE_GRAY, read frames as 420v (faster than 420f or 422 -- at least for H.264 files)
         pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
         mFormat = CV_8UC1;
     } else if (mMode == CV_CAP_MODE_YUYV) {
+        // For CV_CAP_MODE_YUYV, read frames directly as 422.
         pixelFormat = kCVPixelFormatType_422YpCbCr8;
         mFormat = CV_8UC2;
     } else {
@@ -875,9 +834,9 @@ bool CvCaptureFile::setupReadingAt(CMTime position) {
     }
 
     NSDictionary *settings =
-    @{
-      (id)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat)
-      };
+        @{
+            (id)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat)
+        };
     mTrackOutput = [[AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack: mAssetTrack
                                                                outputSettings: settings] retain];
 
@@ -924,6 +883,7 @@ bool CvCaptureFile::grabFrame() {
     return isReading;
 }
 
+
 IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
     if ( ! mGrabbedPixels ) {
         return 0;
@@ -957,27 +917,29 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
         return 0;
     }
 
-    int outChannels;
-    if (mMode == CV_CAP_MODE_BGR || mMode == CV_CAP_MODE_RGB) {
-        outChannels = 3;
-    } else if (mMode == CV_CAP_MODE_GRAY) {
-        outChannels = 1;
-    } else if (mMode == CV_CAP_MODE_YUYV) {
-        outChannels = 2;
-    } else {
-        fprintf(stderr, "VIDEOIO ERROR: AVF Mac: Unsupported mode: %d\n", mMode);
-        CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
-        CVBufferRelease(mGrabbedPixels);
-        mGrabbedPixels = NULL;
-        return 0;
-    }
+     // Output image parameters.
+     int outChannels;
+     if (mMode == CV_CAP_MODE_BGR || mMode == CV_CAP_MODE_RGB) {
+         outChannels = 3;
+     } else if (mMode == CV_CAP_MODE_GRAY) {
+         outChannels = 1;
+     } else if (mMode == CV_CAP_MODE_YUYV) {
+         outChannels = 2;
+     } else {
+         fprintf(stderr, "VIDEOIO ERROR: AVF Mac: Unsupported mode: %d\n", mMode);
+         CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
+         CVBufferRelease(mGrabbedPixels);
+         mGrabbedPixels = NULL;
+         return 0;
+     }
 
-    if ( currSize != width*outChannels*height ) {
-        currSize = width*outChannels*height;
+     if ( currSize != width*outChannels*height ) {
+         currSize = width*outChannels*height;
         free(mOutImagedata);
         mOutImagedata = reinterpret_cast<uint8_t*>(malloc(currSize));
     }
 
+    // Build the header for the output image.
     if (mOutImage == NULL) {
         mOutImage = cvCreateImageHeader(cvSize((int)width,(int)height), IPL_DEPTH_8U, outChannels);
     }
@@ -989,6 +951,8 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
     mOutImage->imageData = reinterpret_cast<char *>(mOutImagedata);
     mOutImage->imageSize = int(currSize);
 
+    // Device image parameters and conversion code.
+    // (Not all of these conversions are used in production, but they were all tested to find the fastest options.)
     int deviceChannels;
     int cvtCode;
 
@@ -1043,7 +1007,9 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
             return 0;
         }
     } else if ( pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||   // 420v
-               pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ) {   // 420f
+                pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ) {   // 420f
+        // cvCvtColor(CV_YUV2GRAY_420) is expecting a single buffer with both the Y plane and the CrCb planes.
+        // So, lie about the height of the buffer.  cvCvtColor(CV_YUV2GRAY_420) will only read the first 2/3 of it.
         height = height * 3 / 2;
         deviceChannels = 1;
 
@@ -1061,15 +1027,14 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
             return 0;
         }
     } else {
-        char pfBuf[] = { (char)pixelFormat, (char)(pixelFormat >> 8),
-                         (char)(pixelFormat >> 16), (char)(pixelFormat >> 24), '\0' };
-        fprintf(stderr, "OpenCV: unsupported pixel format '%s'\n", pfBuf);
+        fprintf(stderr, "OpenCV: unsupported pixel format 0x%08X\n", pixelFormat);
         CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
         CVBufferRelease(mGrabbedPixels);
         mGrabbedPixels = NULL;
         return 0;
     }
 
+    // Build the header for the device image.
     if (mDeviceImage == NULL) {
         mDeviceImage = cvCreateImageHeader(cvSize(int(width),int(height)), IPL_DEPTH_8U, deviceChannels);
     }
@@ -1081,11 +1046,14 @@ IplImage* CvCaptureFile::retrieveFramePixelBuffer() {
     mDeviceImage->imageData = reinterpret_cast<char *>(baseaddress);
     mDeviceImage->imageSize = int(rowBytes*height);
 
+    // Convert the device image into the output image.
     if (cvtCode == -1) {
+        // Copy.
         cv::cvarrToMat(mDeviceImage).copyTo(cv::cvarrToMat(mOutImage));
     } else {
         cvCvtColor(mDeviceImage, mOutImage, cvtCode);
     }
+
 
     CVPixelBufferUnlockBaseAddress(mGrabbedPixels, 0);
 
@@ -1169,7 +1137,7 @@ bool CvCaptureFile::setProperty(int property_id, double value) {
                         retval = setupReadingAt(mFrameTimestamp);
                         break;
                     default:
-                        fprintf(stderr, "VIDEOIO ERROR: AVF iOS: Unsupported mode: %d\n", mode);
+                        fprintf(stderr, "VIDEOIO ERROR: AVF Mac: Unsupported mode: %d\n", mode);
                         retval=false;
                         break;
                 }
@@ -1186,45 +1154,27 @@ bool CvCaptureFile::setProperty(int property_id, double value) {
 
 /*****************************************************************************
  *
- * CvVideoWriter Implementation.
+ * CvVideoWriter_AVFoundation Implementation.
  *
- * CvVideoWriter is the instantiation of a video output class
+ * CvVideoWriter_AVFoundation is the instantiation of a video output class.
  *
  *****************************************************************************/
 
 
-CvVideoWriter_AVFoundation::CvVideoWriter_AVFoundation(const char* filename, int fourcc,
-        double fps, CvSize frame_size,
-        int is_color) {
-
+CvVideoWriter_AVFoundation::CvVideoWriter_AVFoundation(const std::string &filename, int fourcc, double fps, CvSize frame_size, int is_color)
+    : argbimage(nil), mMovieWriter(nil), mMovieWriterInput(nil), mMovieWriterAdaptor(nil), path(nil),
+    codec(nil), fileType(nil), mMovieFPS(fps), movieSize(frame_size), movieColor(is_color), mFrameNum(0),
+    is_good(true)
+{
+    if (mMovieFPS <= 0 || movieSize.width <= 0 || movieSize.height <= 0)
+    {
+        is_good = false;
+        return;
+    }
     NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
 
-
-    frameCount = 0;
-    movieFPS = fps;
-    movieSize = frame_size;
-    movieColor = is_color;
     argbimage = cvCreateImage(movieSize, IPL_DEPTH_8U, 4);
-    path = [[[NSString stringWithCString:filename encoding:NSASCIIStringEncoding] stringByExpandingTildeInPath] retain];
-
-
-    /*
-         AVFileTypeQuickTimeMovie
-         UTI for the QuickTime movie file format.
-         The value of this UTI is com.apple.quicktime-movie. Files are identified with the .mov and .qt extensions.
-
-         AVFileTypeMPEG4
-         UTI for the MPEG-4 file format.
-         The value of this UTI is public.mpeg-4. Files are identified with the .mp4 extension.
-
-         AVFileTypeAppleM4V
-         UTI for the iTunes video file format.
-         The value of this UTI is com.apple.mpeg-4-video. Files are identified with the .m4v extension.
-
-         AVFileType3GPP
-         UTI for the 3GPP file format.
-         The value of this UTI is public.3gpp. Files are identified with the .3gp, .3gpp, and .sdv extensions.
-     */
+    path = [[[NSString stringWithUTF8String:filename.c_str()] stringByExpandingTildeInPath] retain];
 
     NSString *fileExt =[[[path pathExtension] lowercaseString] copy];
     if ([fileExt isEqualToString:@"mov"] || [fileExt isEqualToString:@"qt"]){
@@ -1233,12 +1183,8 @@ CvVideoWriter_AVFoundation::CvVideoWriter_AVFoundation(const char* filename, int
         fileType = [AVFileTypeMPEG4 copy];
     }else if ([fileExt isEqualToString:@"m4v"]){
         fileType = [AVFileTypeAppleM4V copy];
-#if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
-    }else if ([fileExt isEqualToString:@"3gp"] || [fileExt isEqualToString:@"3gpp"] || [fileExt isEqualToString:@"sdv"]  ){
-        fileType = [AVFileType3GPP copy];
-#endif
     } else{
-        fileType = [AVFileTypeMPEG4 copy];  //default mp4
+        is_good = false;
     }
     [fileExt release];
 
@@ -1250,9 +1196,7 @@ CvVideoWriter_AVFoundation::CvVideoWriter_AVFoundation(const char* filename, int
     cc[4] = 0;
     int cc2 = CV_FOURCC(cc[0], cc[1], cc[2], cc[3]);
     if (cc2!=fourcc) {
-        std::cout << "WARNING: Didn't properly encode FourCC. Expected " << fourcc
-            << " but got " << cc2 << "." << std::endl;
-        //exception;
+        is_good = false;
     }
 
     // Two codec supported AVVideoCodecH264 AVVideoCodecJPEG
@@ -1263,59 +1207,59 @@ CvVideoWriter_AVFoundation::CvVideoWriter_AVFoundation(const char* filename, int
     }else if(fourcc == CV_FOURCC('H','2','6','4') || fourcc == CV_FOURCC('a','v','c','1')){
             codec = [AVVideoCodecH264 copy];
     }else{
-        codec = [AVVideoCodecH264 copy]; // default canonical H264.
-
+        is_good = false;
     }
 
     //NSLog(@"Path: %@", path);
 
-    NSError *error = nil;
+    if (is_good)
+    {
+        NSError *error = nil;
 
 
-    // Make sure the file does not already exist. Necessary to overwrite??
-    /*
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    if ([fileManager fileExistsAtPath:path]){
-        [fileManager removeItemAtPath:path error:&error];
-    }
-    */
+        // Make sure the file does not already exist. Necessary to overwrite??
+        /*
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        if ([fileManager fileExistsAtPath:path]){
+            [fileManager removeItemAtPath:path error:&error];
+        }
+        */
 
-    // Wire the writer:
-    // Supported file types:
-    //      AVFileTypeQuickTimeMovie AVFileTypeMPEG4 AVFileTypeAppleM4V AVFileType3GPP
+        // Wire the writer:
+        // Supported file types:
+        //      AVFileTypeQuickTimeMovie AVFileTypeMPEG4 AVFileTypeAppleM4V AVFileType3GPP
 
-    mMovieWriter = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path]
-        fileType:fileType
-        error:&error];
-    //NSParameterAssert(mMovieWriter);
+        mMovieWriter = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path]
+            fileType:fileType
+            error:&error];
+        //NSParameterAssert(mMovieWriter);
 
-    NSDictionary *videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
-        codec, AVVideoCodecKey,
-        [NSNumber numberWithInt:movieSize.width], AVVideoWidthKey,
-        [NSNumber numberWithInt:movieSize.height], AVVideoHeightKey,
-        nil];
+        NSDictionary *videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
+            codec, AVVideoCodecKey,
+            [NSNumber numberWithInt:movieSize.width], AVVideoWidthKey,
+            [NSNumber numberWithInt:movieSize.height], AVVideoHeightKey,
+            nil];
 
-    mMovieWriterInput = [[AVAssetWriterInput
-        assetWriterInputWithMediaType:AVMediaTypeVideo
-        outputSettings:videoSettings] retain];
+        mMovieWriterInput = [[AVAssetWriterInput
+            assetWriterInputWithMediaType:AVMediaTypeVideo
+            outputSettings:videoSettings] retain];
 
-    //NSParameterAssert(mMovieWriterInput);
-    //NSParameterAssert([mMovieWriter canAddInput:mMovieWriterInput]);
+        //NSParameterAssert(mMovieWriterInput);
+        //NSParameterAssert([mMovieWriter canAddInput:mMovieWriterInput]);
 
-    [mMovieWriter addInput:mMovieWriterInput];
+        [mMovieWriter addInput:mMovieWriterInput];
 
-    mMovieWriterAdaptor = [[AVAssetWriterInputPixelBufferAdaptor alloc] initWithAssetWriterInput:mMovieWriterInput sourcePixelBufferAttributes:nil];
-
-
-    //Start a session:
-    [mMovieWriter startWriting];
-    [mMovieWriter startSessionAtSourceTime:kCMTimeZero];
+        mMovieWriterAdaptor = [[AVAssetWriterInputPixelBufferAdaptor alloc] initWithAssetWriterInput:mMovieWriterInput sourcePixelBufferAttributes:nil];
 
 
-    if(mMovieWriter.status == AVAssetWriterStatusFailed){
-        NSLog(@"%@", [mMovieWriter.error localizedDescription]);
-        // TODO: error handling, cleanup. Throw exception?
-        // return;
+        //Start a session:
+        [mMovieWriter startWriting];
+        [mMovieWriter startSessionAtSourceTime:kCMTimeZero];
+
+        if(mMovieWriter.status == AVAssetWriterStatusFailed){
+            NSLog(@"AVF: AVAssetWriter status: %@", [mMovieWriter.error localizedDescription]);
+            is_good = false;
+        }
     }
 
     [localpool drain];
@@ -1325,35 +1269,52 @@ CvVideoWriter_AVFoundation::CvVideoWriter_AVFoundation(const char* filename, int
 CvVideoWriter_AVFoundation::~CvVideoWriter_AVFoundation() {
     NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
 
-    [mMovieWriterInput markAsFinished];
-    [mMovieWriter finishWriting];
-    [mMovieWriter release];
-    [mMovieWriterInput release];
-    [mMovieWriterAdaptor release];
-    [path release];
-    [codec release];
-    [fileType release];
-    cvReleaseImage(&argbimage);
+    if (mMovieWriterInput && mMovieWriter && mMovieWriterAdaptor)
+    {
+        [mMovieWriterInput markAsFinished];
+        [mMovieWriter finishWriting];
+        [mMovieWriter release];
+        [mMovieWriterInput release];
+        [mMovieWriterAdaptor release];
+    }
+    if (path)
+        [path release];
+    if (codec)
+        [codec release];
+    if (fileType)
+        [fileType release];
+    if (argbimage)
+        cvReleaseImage(&argbimage);
 
     [localpool drain];
 
+}
+
+static void releaseCallback( void *releaseRefCon, const void * ) {
+    CFRelease((CFDataRef)releaseRefCon);
 }
 
 bool CvVideoWriter_AVFoundation::writeFrame(const IplImage* iplimage) {
     NSAutoreleasePool* localpool = [[NSAutoreleasePool alloc] init];
 
     // writer status check
-    if (![mMovieWriterInput isReadyForMoreMediaData] || mMovieWriter.status !=  AVAssetWriterStatusWriting ) {
-        NSLog(@"[mMovieWriterInput isReadyForMoreMediaData] Not ready for media data or ...");
+    if (mMovieWriter.status !=  AVAssetWriterStatusWriting ) {
         NSLog(@"mMovieWriter.status: %d. Error: %@", (int)mMovieWriter.status, [mMovieWriter.error localizedDescription]);
         [localpool drain];
         return false;
     }
 
+    // Make writeFrame() a blocking call.
+    while (![mMovieWriterInput isReadyForMoreMediaData]) {
+        fprintf(stderr, "OpenCV: AVF: waiting to write video data.\n");
+        // Sleep 1 msec.
+        usleep(1000);
+    }
+
     BOOL success = FALSE;
 
     if (iplimage->height!=movieSize.height || iplimage->width!=movieSize.width){
-        std::cout<<"Frame size does not match video size."<<std::endl;
+        fprintf(stderr, "OpenCV: Frame size does not match video size.\n");
         [localpool drain];
         return false;
     }
@@ -1383,17 +1344,16 @@ bool CvVideoWriter_AVFoundation::writeFrame(const IplImage* iplimage) {
             kCVPixelFormatType_32BGRA,
             (void*)CFDataGetBytePtr(cfData),
             CGImageGetBytesPerRow(cgImage),
-            NULL,
-            0,
+            &releaseCallback,
+            (void *)cfData,
             NULL,
             &pixelBuffer);
     if(status == kCVReturnSuccess){
         success = [mMovieWriterAdaptor appendPixelBuffer:pixelBuffer
-            withPresentationTime:CMTimeMake(frameCount, movieFPS)];
+            withPresentationTime:CMTimeMake(mFrameNum, mMovieFPS)];
     }
 
     //cleanup
-    CFRelease(cfData);
     CVPixelBufferRelease(pixelBuffer);
     CGImageRelease(cgImage);
     CGDataProviderRelease(provider);
@@ -1402,8 +1362,8 @@ bool CvVideoWriter_AVFoundation::writeFrame(const IplImage* iplimage) {
     [localpool drain];
 
     if (success) {
-        frameCount ++;
-        //NSLog(@"Frame #%d", frameCount);
+        mFrameNum ++;
+        //NSLog(@"Frame #%d", mFrameNum);
         return true;
     }else{
         NSLog(@"Frame appendPixelBuffer failed.");
