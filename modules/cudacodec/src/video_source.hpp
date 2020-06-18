@@ -41,54 +41,56 @@
 //
 //M*/
 
-#ifndef __FRAME_QUEUE_HPP__
-#define __FRAME_QUEUE_HPP__
+#ifndef __CUDACODEC_VIDEO_SOURCE_H__
+#define __CUDACODEC_VIDEO_SOURCE_H__
 
-#include "opencv2/core/utility.hpp"
+#include "thread.hpp"
 
 namespace cv { namespace cudacodec { namespace detail {
 
-class FrameQueue
+class VideoParser;
+
+class VideoSource
 {
 public:
-    static const int MaximumSize = 20; // MAX_FRM_CNT;
+    virtual ~VideoSource() {}
 
-    FrameQueue();
+    virtual FormatInfo format() const = 0;
+    virtual void start() = 0;
+    virtual void stop() = 0;
+    virtual bool isStarted() const = 0;
+    virtual bool hasError() const = 0;
 
-    void endDecode() { endOfDecode_ = true; }
-    bool isEndOfDecode() const { return endOfDecode_ != 0;}
+    void setVideoParser(detail::VideoParser* videoParser) { videoParser_ = videoParser; }
 
-    // Spins until frame becomes available or decoding gets canceled.
-    // If the requested frame is available the method returns true.
-    // If decoding was interrupted before the requested frame becomes
-    // available, the method returns false.
-    bool waitUntilFrameAvailable(int pictureIndex);
-
-    void enqueue(const CUVIDPARSERDISPINFO* picParams);
-
-    // Deque the next frame.
-    // Parameters:
-    //      displayInfo - New frame info gets placed into this object.
-    // Returns:
-    //      true, if a new frame was returned,
-    //      false, if the queue was empty and no new frame could be returned.
-    bool dequeue(CUVIDPARSERDISPINFO& displayInfo);
-
-    void releaseFrame(const CUVIDPARSERDISPINFO& picParams) { isFrameInUse_[picParams.picture_index] = false; }
+protected:
+    bool parseVideoData(const uchar* data, size_t size, bool endOfStream = false);
 
 private:
-    bool isInUse(int pictureIndex) const { return isFrameInUse_[pictureIndex] != 0; }
+    detail::VideoParser* videoParser_;
+};
 
-    Mutex mtx_;
+class RawVideoSourceWrapper : public VideoSource
+{
+public:
+    RawVideoSourceWrapper(const Ptr<RawVideoSource>& source);
 
-    volatile int isFrameInUse_[MaximumSize];
-    volatile int endOfDecode_;
+    FormatInfo format() const CV_OVERRIDE;
+    void start() CV_OVERRIDE;
+    void stop() CV_OVERRIDE;
+    bool isStarted() const CV_OVERRIDE;
+    bool hasError() const CV_OVERRIDE;
 
-    int framesInQueue_;
-    int readPosition_;
-    CUVIDPARSERDISPINFO displayQueue_[MaximumSize];
+private:
+    Ptr<RawVideoSource> source_;
+
+    Ptr<Thread> thread_;
+    volatile bool stop_;
+    volatile bool hasError_;
+
+    static void readLoop(void* userData);
 };
 
 }}}
 
-#endif // __FRAME_QUEUE_HPP__
+#endif // __CUDACODEC_VIDEO_SOURCE_H__
