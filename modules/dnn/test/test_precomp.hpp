@@ -38,56 +38,16 @@
 // the use of this software, even if advised of the possibility of such damage.
 //
 //M*/
+#ifndef __OPENCV_TEST_PRECOMP_HPP__
+#define __OPENCV_TEST_PRECOMP_HPP__
 
-#if !defined(BUILD_PLUGIN)
-#include "cvconfig.h"
-#else
-#include <opencv2/core/cvdef.h>
-#undef __OPENCV_BUILD  // allow public API only
-#endif
-
-#include <opencv2/core.hpp>
+#include "opencv2/ts.hpp"
+#include "opencv2/ts/ts_perf.hpp"
+#include "opencv2/core/utility.hpp"
+#include "opencv2/core/ocl.hpp"
 #include "opencv2/core/utils/configuration.private.hpp"
 
-#ifndef CV_OCL4DNN
-#define CV_OCL4DNN 0
+#include "opencv2/dnn.hpp"
+#include "test_common.hpp"
+
 #endif
-
-#if CV_OCL4DNN
-#ifndef HAVE_OPENCL
-#error "Configuration error: re-run CMake from clean build directory"
-#endif
-#else
-#undef HAVE_OPENCL
-#endif
-
-#ifndef CV_CUDA4DNN
-#define CV_CUDA4DNN 0
-#endif
-
-#if CV_CUDA4DNN
-#ifndef HAVE_CUDA
-#error "Configuration error: re-run CMake from clean build directory"
-#endif
-#else
-#undef HAVE_CUDA
-#endif
-
-#include <numeric>
-#include <memory>
-#include <algorithm>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <set>
-#include <iterator>
-
-#include <opencv2/core/ocl.hpp>
-#include <opencv2/core/opencl/ocl_defs.hpp>
-
-#include <opencv2/core/utils/trace.hpp>
-#include <opencv2/dnn.hpp>
-#include <opencv2/dnn/all_layers.hpp>
-#include <opencv2/dnn/shape_utils.hpp>
-
-#include "dnn_common.hpp"
