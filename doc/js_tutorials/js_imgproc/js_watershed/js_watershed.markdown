@@ -1,12 +1,11 @@
-Image Segmentation with Watershed Algorithm {#tutorial_py_watershed}
+Image Segmentation with Watershed Algorithm {#tutorial_js_watershed}
 ===========================================
 
 Goal
 ----
 
-In this chapter,
-    -   We will learn to use marker-based image segmentation using watershed algorithm
-    -   We will see: **cv.watershed()**
+-   We will learn how to use marker-based image segmentation using watershed algorithm
+-   We will learn: **cv.watershed()**
 
 Theory
 ------
@@ -39,23 +38,17 @@ mutually touching objects.
 Consider the coins image below, the coins are touching each other. Even if you threshold it, it will
 be touching each other.
 
-![image](images/water_coins.jpg)
-
 We start with finding an approximate estimate of the coins. For that, we can use the Otsu's
 binarization.
-@code{.py}
-import numpy as np
-import cv2 as cv
-from matplotlib import pyplot as plt
 
-img = cv.imread('coins.png')
-assert img is not None, "file could not be read, check with os.path.exists()"
-gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
-ret, thresh = cv.threshold(gray,0,255,cv.THRESH_BINARY_INV+cv.THRESH_OTSU)
-@endcode
-Result:
+Try it
+------
 
-![image](images/water_thresh.jpg)
+\htmlonly
+<iframe src="../../js_watershed_threshold.html" width="100%"
+        onload="this.style.height=this.contentDocument.body.scrollHeight +'px';">
+</iframe>
+\endhtmlonly
 
 Now we need to remove any small white noises in the image. For that we can use morphological
 opening. To remove any small holes in the object, we can use morphological closing. So, now we know
@@ -70,35 +63,51 @@ they are not coins. For that, we dilate the result. Dilation increases object bo
 background. This way, we can make sure whatever region in background in result is really a
 background, since boundary region is removed. See the image below.
 
-![image](images/water_fgbg.jpg)
+Try it
+------
+
+\htmlonly
+<iframe src="../../js_watershed_background.html" width="100%"
+        onload="this.style.height=this.contentDocument.body.scrollHeight +'px';">
+</iframe>
+\endhtmlonly
 
 The remaining regions are those which we don't have any idea, whether it is coins or background.
 Watershed algorithm should find it. These areas are normally around the boundaries of coins where
 foreground and background meet (Or even two different coins meet). We call it border. It can be
 obtained from subtracting sure_fg area from sure_bg area.
-@code{.py}
-# noise removal
-kernel = np.ones((3,3),np.uint8)
-opening = cv.morphologyEx(thresh,cv.MORPH_OPEN,kernel, iterations = 2)
 
-# sure background area
-sure_bg = cv.dilate(opening,kernel,iterations=3)
+We use the function: **cv.distanceTransform (src, dst, distanceType, maskSize, labelType = cv.CV_32F)**
 
-# Finding sure foreground area
-dist_transform = cv.distanceTransform(opening,cv.DIST_L2,5)
-ret, sure_fg = cv.threshold(dist_transform,0.7*dist_transform.max(),255,0)
+@param src           8-bit, single-channel (binary) source image.
+@param dst           output image with calculated distances. It is a 8-bit or 32-bit floating-point, single-channel image of the same size as src.
+@param distanceType  type of distance(see cv.DistanceTypes).
+@param maskSize      size of the distance transform mask, see (cv.DistanceTransformMasks).
+@param labelType     type of output image. It can be cv.CV_8U or cv.CV_32F. Type cv.CV_8U can be used only for the first variant of the function and distanceType == DIST_L1.
 
-# Finding unknown region
-sure_fg = np.uint8(sure_fg)
-unknown = cv.subtract(sure_bg,sure_fg)
-@endcode
-See the result. In the thresholded image, we get some regions of coins which we are sure of coins
+Try it
+------
+
+\htmlonly
+<iframe src="../../js_watershed_distanceTransform.html" width="100%"
+        onload="this.style.height=this.contentDocument.body.scrollHeight +'px';">
+</iframe>
+\endhtmlonly
+
+In the thresholded image, we get some regions of coins which we are sure of coins
 and they are detached now. (In some cases, you may be interested in only foreground segmentation,
 not in separating the mutually touching objects. In that case, you need not use distance transform,
 just erosion is sufficient. Erosion is just another method to extract sure foreground area, that's
 all.)
 
-![image](images/water_dt.jpg)
+Try it
+------
+
+\htmlonly
+<iframe src="../../js_watershed_foreground.html" width="100%"
+        onload="this.style.height=this.contentDocument.body.scrollHeight +'px';">
+</iframe>
+\endhtmlonly
 
 Now we know for sure which are region of coins, which are background and all. So we create marker
 (it is an array of same size as that of original image, but with int32 datatype) and label the
@@ -110,40 +119,26 @@ other objects are labelled with integers starting from 1.
 But we know that if background is marked with 0, watershed will consider it as unknown area. So we
 want to mark it with different integer. Instead, we will mark unknown region, defined by unknown,
 with 0.
-@code{.py}
-# Marker labelling
-ret, markers = cv.connectedComponents(sure_fg)
-
-# Add one to all labels so that sure background is not 0, but 1
-markers = markers+1
-
-# Now, mark the region of unknown with zero
-markers[unknown==255] = 0
-@endcode
-See the result shown in JET colormap. The dark blue region shows unknown region. Sure coins are
-colored with different values. Remaining area which are sure background are shown in lighter blue
-compared to unknown region.
-
-![image](images/water_marker.jpg)
 
 Now our marker is ready. It is time for final step, apply watershed. Then marker image will be
 modified. The boundary region will be marked with -1.
-@code{.py}
-markers = cv.watershed(img,markers)
-img[markers == -1] = [255,0,0]
-@endcode
-See the result below. For some coins, the region where they touch are segmented properly and for
-some, they are not.
 
-![image](images/water_result.jpg)
+We use the function: **cv.connectedComponents (image, labels, connectivity = 8, ltype = cv.CV_32S)**
+@param image         the 8-bit single-channel image to be labeled.
+@param labels        destination labeled image(cv.CV_32SC1 type).
+@param connectivity  8 or 4 for 8-way or 4-way connectivity respectively.
+@param ltype         output image label type. Currently cv.CV_32S and cv.CV_16U are supported.
 
-Additional Resources
---------------------
+We use the function: **cv.watershed (image, markers)**
 
--#  CMM page on [Watershed Transformation](https://people.cmm.minesparis.psl.eu/users/beucher/wtshed.html)
+@param image         input 8-bit 3-channel image.
+@param markers       input/output 32-bit single-channel image (map) of markers. It should have the same size as image .
 
-Exercises
----------
+Try it
+------
 
--#  OpenCV samples has an interactive sample on watershed segmentation, watershed.py. Run it, Enjoy
-    it, then learn it.
+\htmlonly
+<iframe src="../../js_watershed_watershed.html" width="100%"
+        onload="this.style.height=this.contentDocument.body.scrollHeight +'px';">
+</iframe>
+\endhtmlonly
