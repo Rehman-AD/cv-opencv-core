@@ -40,30 +40,38 @@
 //
 //M*/
 
-#ifndef _GRFMT_BMP_H_
-#define _GRFMT_BMP_H_
+#ifndef _GRFMT_SUNRAS_H_
+#define _GRFMT_SUNRAS_H_
 
 #include "grfmt_base.hpp"
+
+#ifdef HAVE_IMGCODEC_SUNRASTER
 
 namespace cv
 {
 
-enum BmpCompression
+enum SunRasType
 {
-    BMP_RGB = 0,
-    BMP_RLE8 = 1,
-    BMP_RLE4 = 2,
-    BMP_BITFIELDS = 3
+    RAS_OLD = 0,
+    RAS_STANDARD = 1,
+    RAS_BYTE_ENCODED = 2, /* RLE encoded */
+    RAS_FORMAT_RGB = 3    /* RGB instead of BGR */
+};
+
+enum SunRasMapType
+{
+    RMT_NONE = 0,       /* direct color encoding */
+    RMT_EQUAL_RGB = 1   /* paletted image */
 };
 
 
-// Windows Bitmap reader
-class BmpDecoder CV_FINAL : public BaseImageDecoder
+// Sun Raster Reader
+class SunRasterDecoder CV_FINAL : public BaseImageDecoder
 {
 public:
 
-    BmpDecoder();
-    ~BmpDecoder() CV_OVERRIDE;
+    SunRasterDecoder();
+    virtual ~SunRasterDecoder() CV_OVERRIDE;
 
     bool  readData( Mat& img ) CV_OVERRIDE;
     bool  readHeader() CV_OVERRIDE;
@@ -73,40 +81,29 @@ public:
 
 protected:
 
-    void  initMask();
-    void  maskBGRA(uchar* des, const uchar* src, int num, bool alpha_required);
-    void  maskBGRAtoGray(uchar* des, const uchar* src, int num);
-
-    enum Origin
-    {
-        ORIGIN_TL = 0,
-        ORIGIN_BL = 1
-    };
-
-    RLByteStream    m_strm;
+    RMByteStream    m_strm;
     PaletteEntry    m_palette[256];
-    Origin          m_origin;
     int             m_bpp;
     int64_t         m_offset;
-    BmpCompression  m_rle_code;
-    uint            m_rgba_mask[4];
-    int             m_rgba_bit_offset[4];
-    float           m_rgba_scale_factor[4];
+    SunRasType      m_encoding;
+    SunRasMapType   m_maptype;
+    int             m_maplength;
 };
 
 
-// ... writer
-class BmpEncoder CV_FINAL : public BaseImageEncoder
+class SunRasterEncoder CV_FINAL : public BaseImageEncoder
 {
 public:
-    BmpEncoder();
-    ~BmpEncoder() CV_OVERRIDE;
+    SunRasterEncoder();
+    virtual ~SunRasterEncoder() CV_OVERRIDE;
 
-    bool  write( const Mat& img, const std::vector<int>& params ) CV_OVERRIDE;
+    bool write( const Mat& img, const std::vector<int>& params ) CV_OVERRIDE;
 
     ImageEncoder newEncoder() const CV_OVERRIDE;
 };
 
 }
 
-#endif/*_GRFMT_BMP_H_*/
+#endif // HAVE_IMGCODEC_SUNRASTER
+
+#endif/*_GRFMT_SUNRAS_H_*/

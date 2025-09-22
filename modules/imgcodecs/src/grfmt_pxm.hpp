@@ -40,73 +40,69 @@
 //
 //M*/
 
-#ifndef _GRFMT_BMP_H_
-#define _GRFMT_BMP_H_
+#ifndef _GRFMT_PxM_H_
+#define _GRFMT_PxM_H_
 
 #include "grfmt_base.hpp"
+#include "bitstrm.hpp"
+
+#ifdef HAVE_IMGCODEC_PXM
 
 namespace cv
 {
 
-enum BmpCompression
+enum PxMMode
 {
-    BMP_RGB = 0,
-    BMP_RLE8 = 1,
-    BMP_RLE4 = 2,
-    BMP_BITFIELDS = 3
+    PXM_TYPE_AUTO = 0, // "auto"
+    PXM_TYPE_PBM = 1, // monochrome format (single channel)
+    PXM_TYPE_PGM = 2, // gray format (single channel)
+    PXM_TYPE_PPM = 3  // color format
 };
 
-
-// Windows Bitmap reader
-class BmpDecoder CV_FINAL : public BaseImageDecoder
+class PxMDecoder CV_FINAL : public BaseImageDecoder
 {
 public:
 
-    BmpDecoder();
-    ~BmpDecoder() CV_OVERRIDE;
+    PxMDecoder();
+    virtual ~PxMDecoder() CV_OVERRIDE;
 
     bool  readData( Mat& img ) CV_OVERRIDE;
     bool  readHeader() CV_OVERRIDE;
     void  close();
 
+    size_t signatureLength() const CV_OVERRIDE;
+    bool checkSignature( const String& signature ) const CV_OVERRIDE;
     ImageDecoder newDecoder() const CV_OVERRIDE;
 
 protected:
 
-    void  initMask();
-    void  maskBGRA(uchar* des, const uchar* src, int num, bool alpha_required);
-    void  maskBGRAtoGray(uchar* des, const uchar* src, int num);
-
-    enum Origin
-    {
-        ORIGIN_TL = 0,
-        ORIGIN_BL = 1
-    };
-
     RLByteStream    m_strm;
     PaletteEntry    m_palette[256];
-    Origin          m_origin;
     int             m_bpp;
     int64_t         m_offset;
-    BmpCompression  m_rle_code;
-    uint            m_rgba_mask[4];
-    int             m_rgba_bit_offset[4];
-    float           m_rgba_scale_factor[4];
+    bool            m_binary;
+    int             m_maxval;
 };
 
-
-// ... writer
-class BmpEncoder CV_FINAL : public BaseImageEncoder
+class PxMEncoder CV_FINAL : public BaseImageEncoder
 {
 public:
-    BmpEncoder();
-    ~BmpEncoder() CV_OVERRIDE;
+    PxMEncoder(PxMMode mode);
+    virtual ~PxMEncoder() CV_OVERRIDE;
 
+    bool  isFormatSupported( int depth ) const CV_OVERRIDE;
     bool  write( const Mat& img, const std::vector<int>& params ) CV_OVERRIDE;
 
-    ImageEncoder newEncoder() const CV_OVERRIDE;
+    ImageEncoder newEncoder() const CV_OVERRIDE
+    {
+        return makePtr<PxMEncoder>(mode_);
+    }
+
+    const PxMMode mode_;
 };
 
 }
 
-#endif/*_GRFMT_BMP_H_*/
+#endif // HAVE_IMGCODEC_PXM
+
+#endif/*_GRFMT_PxM_H_*/
