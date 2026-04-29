@@ -1,10 +1,8 @@
 /*M*********************************************************************
  * Software License Agreement (BSD License)
  *
- * Copyright 2008-2009  Marius Muja (mariusm@cs.ubc.ca). All rights reserved.
- * Copyright 2008-2009  David G. Lowe (lowe@cs.ubc.ca). All rights reserved.
- *
- * THE BSD LICENSE
+ * Copyright 2008-2011  Marius Muja (mariusm@cs.ubc.ca). All rights reserved.
+ * Copyright 2008-2011  David G. Lowe (lowe@cs.ubc.ca). All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,72 +26,17 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *************************************************************************/
 
-#ifndef OPENCV_FLANN_TIMER_H
-#define OPENCV_FLANN_TIMER_H
+
+#ifndef OPENCV_FLANN_CONFIG_H_
+#define OPENCV_FLANN_CONFIG_H_
 
 //! @cond IGNORED
 
-#include <time.h>
-#include "opencv2/core.hpp"
-#include "opencv2/core/utility.hpp"
-
-namespace cvflann
-{
-
-/**
- * A start-stop timer class.
- *
- * Can be used to time portions of code.
- */
-class StartStopTimer
-{
-    int64 startTime;
-
-public:
-    /**
-     * Value of the timer.
-     */
-    double value;
-
-
-    /**
-     * Constructor.
-     */
-    StartStopTimer()
-        : startTime(0)
-    {
-        reset();
-    }
-
-    /**
-     * Starts the timer.
-     */
-    void start()
-    {
-        startTime = cv::getTickCount();
-    }
-
-    /**
-     * Stops the timer and updates timer value.
-     */
-    void stop()
-    {
-        int64 stopTime = cv::getTickCount();
-        value += ( (double)stopTime - startTime) / cv::getTickFrequency();
-    }
-
-    /**
-     * Resets the timer value to 0.
-     */
-    void reset()
-    {
-        value = 0;
-    }
-
-};
-
-}
+#ifdef FLANN_VERSION_
+#undef FLANN_VERSION_
+#endif
+#define FLANN_VERSION_ "1.6.10"
 
 //! @endcond
 
-#endif // FLANN_TIMER_H
+#endif /* OPENCV_FLANN_CONFIG_H_ */
