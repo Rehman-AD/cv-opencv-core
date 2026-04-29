@@ -4,8 +4,6 @@
  * Copyright 2008-2009  Marius Muja (mariusm@cs.ubc.ca). All rights reserved.
  * Copyright 2008-2009  David G. Lowe (lowe@cs.ubc.ca). All rights reserved.
  *
- * THE BSD LICENSE
- *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -28,72 +26,59 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *************************************************************************/
 
-#ifndef OPENCV_FLANN_TIMER_H
-#define OPENCV_FLANN_TIMER_H
+
+#ifndef OPENCV_FLANN_SAMPLING_H_
+#define OPENCV_FLANN_SAMPLING_H_
 
 //! @cond IGNORED
 
-#include <time.h>
-#include "opencv2/core.hpp"
-#include "opencv2/core/utility.hpp"
+#include "matrix.h"
+#include "random.h"
 
 namespace cvflann
 {
 
-/**
- * A start-stop timer class.
- *
- * Can be used to time portions of code.
- */
-class StartStopTimer
+template<typename T>
+Matrix<T> random_sample(Matrix<T>& srcMatrix, long size, bool remove = false)
 {
-    int64 startTime;
+    Matrix<T> newSet(new T[size * srcMatrix.cols], size,srcMatrix.cols);
 
-public:
-    /**
-     * Value of the timer.
-     */
-    double value;
-
-
-    /**
-     * Constructor.
-     */
-    StartStopTimer()
-        : startTime(0)
-    {
-        reset();
+    T* src,* dest;
+    for (long i=0; i<size; ++i) {
+        long r = rand_int((int)(srcMatrix.rows-i));
+        dest = newSet[i];
+        src = srcMatrix[r];
+        std::copy(src, src+srcMatrix.cols, dest);
+        if (remove) {
+            src = srcMatrix[srcMatrix.rows-i-1];
+            dest = srcMatrix[r];
+            std::copy(src, src+srcMatrix.cols, dest);
+        }
     }
-
-    /**
-     * Starts the timer.
-     */
-    void start()
-    {
-        startTime = cv::getTickCount();
+    if (remove) {
+        srcMatrix.rows -= size;
     }
-
-    /**
-     * Stops the timer and updates timer value.
-     */
-    void stop()
-    {
-        int64 stopTime = cv::getTickCount();
-        value += ( (double)stopTime - startTime) / cv::getTickFrequency();
-    }
-
-    /**
-     * Resets the timer value to 0.
-     */
-    void reset()
-    {
-        value = 0;
-    }
-
-};
-
+    return newSet;
 }
+
+template<typename T>
+Matrix<T> random_sample(const Matrix<T>& srcMatrix, size_t size)
+{
+    UniqueRandom rand((int)srcMatrix.rows);
+    Matrix<T> newSet(new T[size * srcMatrix.cols], size,srcMatrix.cols);
+
+    T* src,* dest;
+    for (size_t i=0; i<size; ++i) {
+        long r = rand.next();
+        dest = newSet[i];
+        src = srcMatrix[r];
+        std::copy(src, src+srcMatrix.cols, dest);
+    }
+    return newSet;
+}
+
+} // namespace
 
 //! @endcond
 
-#endif // FLANN_TIMER_H
+#endif /* OPENCV_FLANN_SAMPLING_H_ */

@@ -28,72 +28,68 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *************************************************************************/
 
-#ifndef OPENCV_FLANN_TIMER_H
-#define OPENCV_FLANN_TIMER_H
+#ifndef OPENCV_FLANN_OBJECT_FACTORY_H_
+#define OPENCV_FLANN_OBJECT_FACTORY_H_
 
 //! @cond IGNORED
 
-#include <time.h>
-#include "opencv2/core.hpp"
-#include "opencv2/core/utility.hpp"
+#include <map>
 
 namespace cvflann
 {
 
-/**
- * A start-stop timer class.
- *
- * Can be used to time portions of code.
- */
-class StartStopTimer
+class CreatorNotFound
 {
-    int64 startTime;
+};
+
+template<typename BaseClass,
+         typename UniqueIdType,
+         typename ObjectCreator = BaseClass* (*)()>
+class ObjectFactory
+{
+    typedef ObjectFactory<BaseClass,UniqueIdType,ObjectCreator> ThisClass;
+    typedef std::map<UniqueIdType, ObjectCreator> ObjectRegistry;
+
+    // singleton class, private constructor
+    ObjectFactory() {}
 
 public:
-    /**
-     * Value of the timer.
-     */
-    double value;
 
-
-    /**
-     * Constructor.
-     */
-    StartStopTimer()
-        : startTime(0)
+    bool subscribe(UniqueIdType id, ObjectCreator creator)
     {
-        reset();
+        if (object_registry.find(id) != object_registry.end()) return false;
+
+        object_registry[id] = creator;
+        return true;
     }
 
-    /**
-     * Starts the timer.
-     */
-    void start()
+    bool unregister(UniqueIdType id)
     {
-        startTime = cv::getTickCount();
+        return object_registry.erase(id) == 1;
     }
 
-    /**
-     * Stops the timer and updates timer value.
-     */
-    void stop()
+    ObjectCreator create(UniqueIdType id)
     {
-        int64 stopTime = cv::getTickCount();
-        value += ( (double)stopTime - startTime) / cv::getTickFrequency();
+        typename ObjectRegistry::const_iterator iter = object_registry.find(id);
+
+        if (iter == object_registry.end()) {
+            throw CreatorNotFound();
+        }
+
+        return iter->second;
     }
 
-    /**
-     * Resets the timer value to 0.
-     */
-    void reset()
+    static ThisClass& instance()
     {
-        value = 0;
+        static ThisClass the_factory;
+        return the_factory;
     }
-
+private:
+    ObjectRegistry object_registry;
 };
 
 }
 
 //! @endcond
 
-#endif // FLANN_TIMER_H
+#endif /* OPENCV_FLANN_OBJECT_FACTORY_H_ */
