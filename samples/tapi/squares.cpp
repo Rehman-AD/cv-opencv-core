@@ -1,30 +1,15 @@
 
-// The "Square Detector" program.
-// It loads several images sequentially and tries to find squares in
-// each image
-
 #include "opencv2/core.hpp"
+#include "opencv2/core/ocl.hpp"
+#include "opencv2/core/utility.hpp"
 #include "opencv2/3d.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/highgui.hpp"
-
 #include <iostream>
 
 using namespace cv;
 using namespace std;
-
-static void help(const char* programName)
-{
-    cout <<
-    "\nA program using pyramid scaling, Canny, contours and contour simplification\n"
-    "to find squares in a list of images (pic1-6.png)\n"
-    "Returns sequence of squares detected on the image.\n"
-    "Call:\n"
-    "./" << programName << " [file_name (optional)]\n"
-    "Using OpenCV version " << CV_VERSION << "\n" << endl;
-}
-
 
 int thresh = 50, N = 11;
 const char* wndname = "Square Detection Demo";
@@ -41,12 +26,12 @@ static double angle( Point pt1, Point pt2, Point pt0 )
     return (dx1*dx2 + dy1*dy2)/sqrt((dx1*dx1 + dy1*dy1)*(dx2*dx2 + dy2*dy2) + 1e-10);
 }
 
+
 // returns sequence of squares detected on the image.
-static void findSquares( const Mat& image, vector<vector<Point> >& squares )
+static void findSquares( const UMat& image, vector<vector<Point> >& squares )
 {
     squares.clear();
-
-    Mat pyr, timg, gray0(image.size(), CV_8U), gray;
+    UMat pyr, timg, gray0(image.size(), CV_8U), gray;
 
     // down-scale and upscale the image to filter out the noise
     pyrDown(image, pyr, Size(image.cols/2, image.rows/2));
@@ -57,7 +42,7 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )
     for( int c = 0; c < 3; c++ )
     {
         int ch[] = {c, 0};
-        mixChannels(&timg, 1, &gray0, 1, ch, 1);
+        mixChannels(timg, gray0, ch, 1);
 
         // try several threshold levels
         for( int l = 0; l < N; l++ )
@@ -71,13 +56,13 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )
                 Canny(gray0, gray, 0, thresh, 5);
                 // dilate canny output to remove potential
                 // holes between edge segments
-                dilate(gray, gray, Mat(), Point(-1,-1));
+                dilate(gray, gray, UMat(), Point(-1,-1));
             }
             else
             {
                 // apply threshold if l!=0:
                 //     tgray(x,y) = gray(x,y) < (l+1)*255/N ? 255 : 0
-                gray = gray0 >= (l+1)*255/N;
+                threshold(gray0, gray, (l+1)*255/N, 255, THRESH_BINARY);
             }
 
             // find contours and store them all as a list
@@ -90,6 +75,7 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )
             {
                 // approximate contour with accuracy proportional
                 // to the contour perimeter
+
                 approxPolyDP(contours[i], approx, arcLength(contours[i], true)*0.02, true);
 
                 // square contours should have 4 vertices after approximation
@@ -99,8 +85,8 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )
                 // area may be positive or negative - in accordance with the
                 // contour orientation
                 if( approx.size() == 4 &&
-                    fabs(contourArea(approx)) > 1000 &&
-                    isContourConvex(approx) )
+                        fabs(contourArea(approx)) > 1000 &&
+                        isContourConvex(approx) )
                 {
                     double maxCosine = 0;
 
@@ -122,38 +108,94 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )
     }
 }
 
+// the function draws all the squares in the image
+static void drawSquares( UMat& _image, const vector<vector<Point> >& squares )
+{
+    Mat image = _image.getMat(ACCESS_WRITE);
+    for( size_t i = 0; i < squares.size(); i++ )
+    {
+        const Point* p = &squares[i][0];
+        int n = (int)squares[i].size();
+        polylines(image, &p, &n, 1, true, Scalar(0,255,0), 3, LINE_AA);
+    }
+}
+
+
+// draw both pure-C++ and ocl square results onto a single image
+static UMat drawSquaresBoth( const UMat& image,
+                            const vector<vector<Point> >& sqs)
+{
+    UMat imgToShow(Size(image.cols, image.rows), image.type());
+    image.copyTo(imgToShow);
+
+    drawSquares(imgToShow, sqs);
+
+    return imgToShow;
+}
+
+
 int main(int argc, char** argv)
 {
-    const char* names[] = { "pic1.png", "pic2.png", "pic3.png",
-        "pic4.png", "pic5.png", "pic6.png", 0 };
-    help(argv[0]);
+    const char* keys =
+        "{ i input    | ../data/pic1.png   | specify input image }"
+        "{ o output   | squares_output.jpg | specify output save path}"
+        "{ h help     |                    | print help message }"
+        "{ m cpu_mode |                    | run without OpenCL }";
 
-    if( argc > 1)
+    CommandLineParser cmd(argc, argv, keys);
+
+    if(cmd.has("help"))
     {
-     names[0] =  argv[1];
-     names[1] =  0;
+        cout << "Usage : " << argv[0] << " [options]" << endl;
+        cout << "Available options:" << endl;
+        cmd.printMessage();
+        return EXIT_SUCCESS;
+    }
+    if (cmd.has("cpu_mode"))
+    {
+        ocl::setUseOpenCL(false);
+        cout << "OpenCL was disabled" << endl;
     }
 
-    for( int i = 0; names[i] != 0; i++ )
-    {
-        string filename = samples::findFile(names[i]);
-        Mat image = imread(filename, IMREAD_COLOR);
-        if( image.empty() )
-        {
-            cout << "Couldn't load " << filename << endl;
-            continue;
-        }
+    string inputName = samples::findFile(cmd.get<string>("i"));
+    string outfile = cmd.get<string>("o");
 
-        vector<vector<Point> > squares;
+    int iterations = 10;
+    namedWindow( wndname, WINDOW_AUTOSIZE );
+    vector<vector<Point> > squares;
+
+    UMat image;
+    imread(inputName, IMREAD_COLOR).copyTo(image);
+    if( image.empty() )
+    {
+        cout << "Couldn't load " << inputName << endl;
+        cmd.printMessage();
+        return EXIT_FAILURE;
+    }
+
+    int j = iterations;
+    int64 t_cpp = 0;
+    //warm-ups
+    cout << "warming up ..." << endl;
+    findSquares(image, squares);
+
+    do
+    {
+        int64 t_start = getTickCount();
         findSquares(image, squares);
+        t_cpp += cv::getTickCount() - t_start;
 
-        polylines(image, squares, true, Scalar(0, 255, 0), 3, LINE_AA);
-        imshow(wndname, image);
+        t_start  = getTickCount();
 
-        int c = waitKey();
-        if( c == 27 )
-            break;
+        cout << "run loop: " << j << endl;
     }
+    while(--j);
+    cout << "average time: " << 1000.0f * (double)t_cpp / getTickFrequency() / iterations << "ms" << endl;
 
-    return 0;
+    UMat result = drawSquaresBoth(image, squares);
+    imshow(wndname, result);
+    imwrite(outfile, result);
+    waitKey(0);
+
+    return EXIT_SUCCESS;
 }
