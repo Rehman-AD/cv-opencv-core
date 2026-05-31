@@ -44,24 +44,24 @@
 
 namespace opencv_test { namespace {
 
-class CV_FastTest : public cvtest::BaseTest
+class CV_AgastTest : public cvtest::BaseTest
 {
 public:
-    CV_FastTest();
-    ~CV_FastTest();
+    CV_AgastTest();
+    ~CV_AgastTest();
 protected:
     void run(int);
 };
 
-CV_FastTest::CV_FastTest() {}
-CV_FastTest::~CV_FastTest() {}
+CV_AgastTest::CV_AgastTest() {}
+CV_AgastTest::~CV_AgastTest() {}
 
-void CV_FastTest::run( int )
+void CV_AgastTest::run( int )
 {
   for(int type=0; type <= 2; ++type) {
     Mat image1 = imread(string(ts->get_data_path()) + "inpaint/orig.png");
     Mat image2 = imread(string(ts->get_data_path()) + "cameracalibration/chess9.png");
-    string xml = string(ts->get_data_path()) + format("fast/result%d.xml", type);
+    string xml = string(ts->get_data_path()) + format("agast/result%d.xml", type);
 
     if (image1.empty() || image2.empty())
     {
@@ -75,8 +75,8 @@ void CV_FastTest::run( int )
 
     vector<KeyPoint> keypoints1;
     vector<KeyPoint> keypoints2;
-    FAST(gray1, keypoints1, 30, true, static_cast<FastFeatureDetector::DetectorType>(type));
-    FAST(gray2, keypoints2, (type > 0 ? 30 : 20), true, static_cast<FastFeatureDetector::DetectorType>(type));
+    AGAST(gray1, keypoints1, 30, true, static_cast<AgastFeatureDetector::DetectorType>(type));
+    AGAST(gray2, keypoints2, (type > 0 ? 30 : 20), true, static_cast<AgastFeatureDetector::DetectorType>(type));
 
     for(size_t i = 0; i < keypoints1.size(); ++i)
     {
@@ -118,8 +118,8 @@ void CV_FastTest::run( int )
     read( fs["exp_kps2"], exp_kps2, Mat() );
     fs.release();
 
-    if ( exp_kps1.size != kps1.size || 0 != cvtest::norm(exp_kps1, kps1, NORM_L2) ||
-         exp_kps2.size != kps2.size || 0 != cvtest::norm(exp_kps2, kps2, NORM_L2))
+     if ( exp_kps1.size != kps1.size || 0 != cvtest::norm(exp_kps1, kps1, NORM_L2) ||
+          exp_kps2.size != kps2.size || 0 != cvtest::norm(exp_kps2, kps2, NORM_L2))
     {
         ts->set_failed_test_info(cvtest::TS::FAIL_MISMATCH);
         return;
@@ -133,45 +133,15 @@ void CV_FastTest::run( int )
   ts->set_failed_test_info(cvtest::TS::OK);
 }
 
-TEST(Features2d_FAST, regression) { CV_FastTest test; test.safe_run(); }
+TEST(Features2d_AGAST, regression) { CV_AgastTest test; test.safe_run(); }
 
-// #define DUMP_TEST_DATA
-
-TEST(Features2d_FAST, noNMS)
-{
-    Mat img = imread(string(cvtest::TS::ptr()->get_data_path()) + "inpaint/orig.png", cv::IMREAD_GRAYSCALE);
-    string xml = string(cvtest::TS::ptr()->get_data_path()) + "fast/result_no_nonmax.xml";
-
-    vector<KeyPoint> keypoints;
-    FAST(img, keypoints, 100, false, FastFeatureDetector::DetectorType::TYPE_9_16);
-    Mat kps(1, (int)(keypoints.size() * sizeof(KeyPoint)), CV_8U, &keypoints[0]);
-
-    Mat gt_kps;
-    FileStorage fs(xml, FileStorage::READ);
-#ifdef DUMP_TEST_DATA
-    if (!fs.isOpened())
-    {
-        fs.open(xml, FileStorage::WRITE);
-        fs << "exp_kps" << kps;
-        fs.release();
-        fs.open(xml, FileStorage::READ);
-    }
-#endif
-    ASSERT_TRUE(fs.isOpened());
-    fs["exp_kps"] >> gt_kps;
-    fs.release();
-    ASSERT_GT(gt_kps.total(), size_t(0));
-
-    ASSERT_EQ( 0, cvtest::norm(gt_kps, kps, NORM_L2));
-}
-
-TEST(Features2d_FAST, invalidDetectorType)
+TEST(Features2d_AGAST, invalidDetectorType)
 {
     Mat img = Mat::zeros(16, 16, CV_8UC1);
     vector<KeyPoint> keypoints;
 
-    EXPECT_THROW(FAST(img, keypoints, 10, true,
-                      static_cast<FastFeatureDetector::DetectorType>(-1)),
+    EXPECT_THROW(AGAST(img, keypoints, 10, true,
+                       static_cast<AgastFeatureDetector::DetectorType>(-1)),
                  cv::Exception);
 }
 
