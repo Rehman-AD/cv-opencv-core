@@ -7,10 +7,11 @@
 //  copy or use the software.
 //
 //
-//                        Intel License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (C) 2000, Intel Corporation, all rights reserved.
+// Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
+// Copyright (C) 2009, Willow Garage Inc., all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -23,7 +24,7 @@
 //     this list of conditions and the following disclaimer in the documentation
 //     and/or other materials provided with the distribution.
 //
-//   * The name of Intel Corporation may not be used to endorse or promote products
+//   * The name of the copyright holders may not be used to endorse or promote products
 //     derived from this software without specific prior written permission.
 //
 // This software is provided by the copyright holders and contributors "as is" and
@@ -38,39 +39,15 @@
 // the use of this software, even if advised of the possibility of such damage.
 //
 //M*/
-#include "test_precomp.hpp"
-#include "opencv2/ts/ocl_test.hpp"
 
-namespace opencv_test { namespace {
+#ifndef __OPENCV_PRECOMP_H__
+#define __OPENCV_PRECOMP_H__
 
-class CV_SmallContourMomentTest : public cvtest::BaseTest
-{
-public:
-    CV_SmallContourMomentTest() {}
-    ~CV_SmallContourMomentTest() {}
-protected:
-    void run(int)
-    {
-        try
-        {
-            vector<Point> points;
-            points.push_back(Point(50, 56));
-            points.push_back(Point(53, 53));
-            points.push_back(Point(46, 54));
-            points.push_back(Point(49, 51));
+#include "opencv2/video.hpp"
+#include "opencv2/core/utility.hpp"
+#include "opencv2/core/private.hpp"
+#include "opencv2/core/ocl.hpp"
+#include "opencv2/core.hpp"
+#include "opencv2/geometry.hpp"
 
-            Moments m = moments(points, false);
-            // double area = contourArea(points);
-
-            CV_Assert( m.m00 == 0 && m.m01 == 0 && m.m10 == 0 /*&& area == 0*/ );
-        }
-        catch(...)
-        {
-            ts->set_failed_test_info(cvtest::TS::FAIL_MISMATCH);
-        }
-    }
-};
-
-TEST(Imgproc_ContourMoment, small) { CV_SmallContourMomentTest test; test.safe_run(); }
-
-}} // namespace
+#endif
