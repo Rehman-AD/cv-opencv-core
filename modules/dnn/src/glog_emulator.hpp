@@ -10,7 +10,7 @@
 //                           License Agreement
 //                For Open Source Computer Vision Library
 //
-// Copyright (c) 2016-2017 Fabian David Tschopp, all rights reserved.
+// Copyright (C) 2013, OpenCV Foundation, all rights reserved.
 // Third party copyrights are property of their respective owners.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -39,22 +39,68 @@
 //
 //M*/
 
-#ifndef _OPENCV_LIBDNN_COMMON_HPP_
-#define _OPENCV_LIBDNN_COMMON_HPP_
-#include "../../glog_emulator.hpp"
-#include <opencv2/core/opencl/runtime/opencl_core.hpp>
+#ifndef __OPENCV_DNN_GLOG_EMULATOR_HPP__
+#define __OPENCV_DNN_GLOG_EMULATOR_HPP__
+#include <cstdlib>
+#include <iostream>
+#include <sstream>
+#include <opencv2/core.hpp>
 
-// Macro to select the single (_float) or double (_double) precision kernel
-#define CL_KERNEL_SELECT(kernel) kernel "_float"
+#define CHECK(cond)     for(cv::dnn::GLogWrapper _logger(__FILE__, CV_Func, __LINE__, "CHECK", #cond, cond); _logger.exit(); _logger.check()) _logger.stream()
+#define CHECK_EQ(a, b)  for(cv::dnn::GLogWrapper _logger(__FILE__, CV_Func, __LINE__, "CHECK", #a"="#b, ((a) == (b))); _logger.exit(); _logger.check()) _logger.stream()
+#define LOG(TYPE)       for(cv::dnn::GLogWrapper _logger(__FILE__, CV_Func, __LINE__, #TYPE); _logger.exit(); _logger.check()) _logger.stream()
 
-#define OCL_CHECK(condition) \
-    do { \
-        cl_int error = (condition); \
-        CHECK_EQ(error, CL_SUCCESS) << " " << cv::ocl::getOpenCLErrorString(error); \
-    } while (0)
+namespace cv
+{
+namespace dnn
+{
 
-bool clOptionSupport(cv::String option);
+class GLogWrapper
+{
+    const char *file, *func, *type, *cond_str;
+    int line;
+    bool cond_status, exit_loop;
+    std::stringstream sstream;
 
-cv::String matTypeToOclType(int cvMatType);
+public:
 
+    GLogWrapper(const char *_file, const char *_func, int _line,
+          const char *_type,
+          const char *_cond_str = NULL, bool _cond_status = true
+    ) :
+        file(_file), func(_func), type(_type), cond_str(_cond_str),
+        line(_line), cond_status(_cond_status), exit_loop(true) {}
+
+    std::iostream &stream()
+    {
+        return sstream;
+    }
+
+    bool exit()
+    {
+        return exit_loop;
+    }
+
+    void check()
+    {
+        exit_loop = false;
+
+        if (cond_str && !cond_status)
+        {
+            cv::error(cv::Error::StsError, "FAILED: " + String(cond_str) + ". " + sstream.str(), func, file, line);
+        }
+        else if (!cond_str && strcmp(type, "CHECK"))
+        {
+            #ifndef NDEBUG
+            if (!std::strcmp(type, "INFO"))
+                std::cout << sstream.str() << std::endl;
+            else
+                std::cerr << sstream.str() << std::endl;
+            #endif
+        }
+    }
+};
+
+}
+}
 #endif
