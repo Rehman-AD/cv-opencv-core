@@ -7,7 +7,7 @@
 //  copy or use the software.
 //
 //
-//                           License Agreement
+//                          License Agreement
 //                For Open Source Computer Vision Library
 //
 // Copyright (C) 2000-2008, Intel Corporation, all rights reserved.
@@ -40,66 +40,92 @@
 //
 //M*/
 
-#ifndef OPENCV_CUDA_COMMON_HPP
-#define OPENCV_CUDA_COMMON_HPP
+#ifndef OPENCV_STITCHING_UTIL_INL_HPP
+#define OPENCV_STITCHING_UTIL_INL_HPP
 
-#include <cuda_runtime.h>
-#include "opencv2/core/cuda_types.hpp"
-#include "opencv2/core/cvdef.h"
-#include "opencv2/core/base.hpp"
-
-/** @file
- * @deprecated Use @ref cudev instead.
- */
+#include <queue>
+#include "opencv2/core.hpp"
+#include "util.hpp" // Make your IDE see declarations
 
 //! @cond IGNORED
 
-#ifndef CV_PI_F
-    #ifndef CV_PI
-        #define CV_PI_F 3.14159265f
-    #else
-        #define CV_PI_F ((float)CV_PI)
-    #endif
-#endif
+namespace cv {
+namespace detail {
 
-namespace cv { namespace cuda {
-    inline void checkCudaError(cudaError_t err, const char* file, const int line, const char* func)
-    {
-        if (cudaSuccess != err) {
-            cudaGetLastError(); // reset the last stored error to cudaSuccess
-            cv::error(cv::Error::GpuApiCallError, cudaGetErrorString(err), func, file, line);
-        }
-    }
-}}
-
-#ifndef cudaSafeCall
-    #define cudaSafeCall(expr)  cv::cuda::checkCudaError(expr, __FILE__, __LINE__, CV_Func)
-#endif
-
-namespace cv { namespace cuda
+template <typename B>
+B Graph::forEach(B body) const
 {
-    template <typename T> inline bool isAligned(const T* ptr, size_t size)
+    for (int i = 0; i < numVertices(); ++i)
     {
-        return reinterpret_cast<size_t>(ptr) % size == 0;
+        std::list<GraphEdge>::const_iterator edge = edges_[i].begin();
+        for (; edge != edges_[i].end(); ++edge)
+            body(*edge);
     }
+    return body;
+}
 
-    inline bool isAligned(size_t step, size_t size)
-    {
-        return step % size == 0;
-    }
-}}
 
-namespace cv { namespace cuda
+template <typename B>
+B Graph::walkBreadthFirst(int from, B body) const
 {
-    namespace device
+    std::vector<bool> was(numVertices(), false);
+    std::queue<int> vertices;
+
+    was[from] = true;
+    vertices.push(from);
+
+    while (!vertices.empty())
     {
-        __host__ __device__ __forceinline__ int divUp(int total, int grain)
+        int vertex = vertices.front();
+        vertices.pop();
+
+        std::list<GraphEdge>::const_iterator edge = edges_[vertex].begin();
+        for (; edge != edges_[vertex].end(); ++edge)
         {
-            return (total + grain - 1) / grain;
+            if (!was[edge->to])
+            {
+                body(*edge);
+                was[edge->to] = true;
+                vertices.push(edge->to);
+            }
         }
     }
-}}
+
+    return body;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////
+// Some auxiliary math functions
+
+inline
+float normL2(const Point3f& a)
+{
+    return a.x * a.x + a.y * a.y + a.z * a.z;
+}
+
+
+inline
+float normL2(const Point3f& a, const Point3f& b)
+{
+    return normL2(a - b);
+}
+
+
+inline
+double normL2sq(const Mat &r)
+{
+    return r.dot(r);
+}
+
+
+inline int sqr(int x) { return x * x; }
+inline float sqr(float x) { return x * x; }
+inline double sqr(double x) { return x * x; }
+
+} // namespace detail
+} // namespace cv
 
 //! @endcond
 
-#endif // OPENCV_CUDA_COMMON_HPP
+#endif // OPENCV_STITCHING_UTIL_INL_HPP

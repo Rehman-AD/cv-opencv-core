@@ -40,13 +40,12 @@
 //
 //M*/
 
-#ifndef OPENCV_CUDA_COMMON_HPP
-#define OPENCV_CUDA_COMMON_HPP
+#ifndef OPENCV_CUDA_TRANSFORM_HPP
+#define OPENCV_CUDA_TRANSFORM_HPP
 
-#include <cuda_runtime.h>
-#include "opencv2/core/cuda_types.hpp"
-#include "opencv2/core/cvdef.h"
-#include "opencv2/core/base.hpp"
+#include "common.hpp"
+#include "utility.hpp"
+#include "detail/transform_detail.hpp"
 
 /** @file
  * @deprecated Use @ref cudev instead.
@@ -54,52 +53,23 @@
 
 //! @cond IGNORED
 
-#ifndef CV_PI_F
-    #ifndef CV_PI
-        #define CV_PI_F 3.14159265f
-    #else
-        #define CV_PI_F ((float)CV_PI)
-    #endif
-#endif
-
-namespace cv { namespace cuda {
-    inline void checkCudaError(cudaError_t err, const char* file, const int line, const char* func)
-    {
-        if (cudaSuccess != err) {
-            cudaGetLastError(); // reset the last stored error to cudaSuccess
-            cv::error(cv::Error::GpuApiCallError, cudaGetErrorString(err), func, file, line);
-        }
-    }
-}}
-
-#ifndef cudaSafeCall
-    #define cudaSafeCall(expr)  cv::cuda::checkCudaError(expr, __FILE__, __LINE__, CV_Func)
-#endif
-
-namespace cv { namespace cuda
+namespace cv { namespace cuda { namespace device
 {
-    template <typename T> inline bool isAligned(const T* ptr, size_t size)
+    template <typename T, typename D, typename UnOp, typename Mask>
+    inline void transform(PtrStepSz<T> src, PtrStepSz<D> dst, UnOp op, const Mask& mask, cudaStream_t stream)
     {
-        return reinterpret_cast<size_t>(ptr) % size == 0;
+        typedef TransformFunctorTraits<UnOp> ft;
+        transform_detail::TransformDispatcher<VecTraits<T>::cn == 1 && VecTraits<D>::cn == 1 && ft::smart_shift != 1>::call(src, dst, op, mask, stream);
     }
 
-    inline bool isAligned(size_t step, size_t size)
+    template <typename T1, typename T2, typename D, typename BinOp, typename Mask>
+    inline void transform(PtrStepSz<T1> src1, PtrStepSz<T2> src2, PtrStepSz<D> dst, BinOp op, const Mask& mask, cudaStream_t stream)
     {
-        return step % size == 0;
+        typedef TransformFunctorTraits<BinOp> ft;
+        transform_detail::TransformDispatcher<VecTraits<T1>::cn == 1 && VecTraits<T2>::cn == 1 && VecTraits<D>::cn == 1 && ft::smart_shift != 1>::call(src1, src2, dst, op, mask, stream);
     }
-}}
-
-namespace cv { namespace cuda
-{
-    namespace device
-    {
-        __host__ __device__ __forceinline__ int divUp(int total, int grain)
-        {
-            return (total + grain - 1) / grain;
-        }
-    }
-}}
+}}}
 
 //! @endcond
 
-#endif // OPENCV_CUDA_COMMON_HPP
+#endif // OPENCV_CUDA_TRANSFORM_HPP
